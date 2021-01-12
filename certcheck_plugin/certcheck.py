@@ -90,8 +90,8 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             result = response.json()
 
             for monitor in result["monitors"]:
-                if monitor['type'] == "HTTP":
-                    monitors.update({monitor["name"]:monitor["entityId"]})
+                #if monitor['type'] == "HTTP":
+                monitors.update({monitor["entityId"]:monitor["name"]})
         except:
             logger.error("Error while trying to get synthetic monitors for {}::{}".format(clusterid,tenantid))
 
@@ -110,14 +110,19 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         #session.auth = (apiuser, apipwd)
         session.verify = False
         session.headers = headers
-        for m_name,m_id in monitors.items():
+        for m_id,m_name in monitors.items():
             try:
                 m_url = url.replace(':id',m_id)
                 response = session.get(m_url)
                 result = response.json()
 
                 m_requests = result["script"]
-                for req in m_requests["requests"]:
+                if result["type"] == "HTTP":
+                    request_key = "requests"
+                if result["type"] == "BROWSER":
+                    request_key = "events"
+                
+                for req in m_requests[request_key]:
                     parsed = urlparse(req["url"])
                     if parsed.scheme == "https":
                         hosts.update({"{}://{}{}".format(parsed.scheme, parsed.hostname, "" if not parsed.port else ":"+str(parsed.port)) : m_id})
