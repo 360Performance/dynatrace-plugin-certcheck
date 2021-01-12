@@ -62,11 +62,11 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         if "hour" in self.interval:
             hour = int(self.interval.strip().split()[0])
             run = (time_hour%hour == 0) and time_minute == 0
-            self.problemtimeout = hour
+            self.problemtimeout = hour*60*2
         if "minute" in self.interval:
             minute = int(self.interval.strip().split()[0])
             run = (time_minute%minute == 0)
-            self.problemtimeout = minute
+            self.problemtimeout = minute*2
         
         logger.info("Set to run every {}, it is now {:02d}:{:02d}. Check will{}run!".format(self.interval,time_hour, time_minute, " " if run else " not "))
         
