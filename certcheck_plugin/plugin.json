@@ -1,0 +1,86 @@
+{
+    "name": "custom.remote.python.certcheck",
+    "metricGroup": "tech.ssl",
+    "version": "1.0",
+    "experimentalMinVersion": "0.99",
+    "productiveMinVersion": "1.0",
+    "type": "python",
+    "entity": "CUSTOM_DEVICE",
+    "technologies": [
+        "OpenSSL"
+    ],
+    "source": {
+        "package": "certcheck",
+        "className": "CertificateCheckPlugin",
+        "install_requires": [
+            "pyopenssl", "cffi", "pycparser"
+        ],
+        "activation": "Remote"
+    },
+    "metrics": [],
+    "properties": [
+        {
+            "key": "minduration",
+            "type": "Integer",
+            "defaultValue": 30
+        },
+        {
+            "key": "tag",
+            "type": "String"
+        },
+        {
+            "key": "tenantUUID",
+            "type": "String"
+        },
+        {
+            "key": "apitoken",
+            "type": "Password"
+        },
+        {
+            "key": "interval",
+            "type": "Dropdown",
+            "defaultValue": "15 minutes",
+            "dropdownValues": ["15 minutes", "30 minutes", "1 hours","2 hours","6 hours","12 hours","24 hours"]
+        }
+    ],
+    "configUI": {
+        "displayName": "Certificate Validation Check",
+        "properties": [
+            {
+                "key": "minduration",
+                "displayName": "Minimum Certificate Validity in Days",
+                "displayHint": "days",
+                "displayOrder": 1
+            },
+            {
+                "key": "interval",
+                "displayName": "Time interval for checks",
+                "displayHint": "every X minutes/hours",
+                "displayOrder": 2
+            },
+            {
+                "key": "tag",
+                "displayName": "Select Synthetic Monitors by Tag",
+                "displayHint": "mytag",
+                "displayOrder": 3
+            },
+            {
+                "key": "tenantUUID",
+                "displayName": "Dynatrace Tenant UUID to report to",
+                "displayHint": "mytenant",
+                "displayOrder": 4
+            },
+            {
+                "key": "apitoken",
+                "displayName": "Dynatrace API token",
+                "displayHint": "auth-token",
+                "displayOrder": 5
+            }
+        ]
+    },
+    "ui": {
+        "keymetrics": [],
+        "keycharts":[],
+        "charts": []
+    }
+}
