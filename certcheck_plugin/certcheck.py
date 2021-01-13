@@ -20,7 +20,7 @@ __status__ = "Production"
 from ruxit.api.base_plugin import RemoteBasePlugin
 from ruxit.api.exceptions import ConfigException
 import requests, urllib3, json
-import logging,sys
+import logging,sys,traceback
 from urllib.parse import urlencode, urlparse
 from datetime import datetime, timedelta
 
@@ -88,10 +88,11 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         try:
             response = requests.get(url, headers=headers, verify=False)
             result = response.json()
-
-            for monitor in result["monitors"]:
-                #if monitor['type'] == "HTTP":
-                monitors.update({monitor["entityId"]:monitor["name"]})
+            if response.status_code == requests.codes.ok:
+                for monitor in result["monitors"]:
+                    monitors.update({monitor["entityId"]:monitor["name"]})
+            else:
+                logger.error("Getting monitors returned {}: {}".format(m_id,response.status_code,result))
         except:
             logger.error("Error while trying to get synthetic monitors for {}::{}".format(clusterid,tenantid))
 
@@ -115,17 +116,19 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                 m_url = url.replace(':id',m_id)
                 response = session.get(m_url)
                 result = response.json()
-
-                m_requests = result["script"]
-                if result["type"] == "HTTP":
-                    request_key = "requests"
-                if result["type"] == "BROWSER":
-                    request_key = "events"
-                
-                for req in m_requests[request_key]:
-                    parsed = urlparse(req["url"])
-                    if parsed.scheme == "https":
-                        hosts.update({"{}://{}{}".format(parsed.scheme, parsed.hostname, "" if not parsed.port else ":"+str(parsed.port)) : m_id})
+                if response.status_code == requests.codes.ok:
+                    m_requests = result["script"]
+                    if result["type"] == "HTTP":
+                        request_key = "requests"
+                    if result["type"] == "BROWSER":
+                        request_key = "events"
+                    
+                    for req in m_requests[request_key]:
+                        parsed = urlparse(req["url"])
+                        if parsed.scheme == "https":
+                            hosts.update({"{}://{}{}".format(parsed.scheme, parsed.hostname, "" if not parsed.port else ":"+str(parsed.port)) : m_id})
+                else:
+                    logger.error("Getting monitor details for {} returned {}: {}".format(m_id,response.status_code,result))
             except:
                 logger.error("Error while trying to get synthetic hosts") 
         
@@ -135,8 +138,14 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         hostname_idna = idna.encode(hostname)
         sock = socket()
 
-        sock.connect((hostname, port))
-        peername = sock.getpeername()
+        try:
+            #sock.settimeout(30.0)
+            sock.connect((hostname, port))
+            peername = sock.getpeername()
+        except Exception as e:
+            logger.error("Failed to connect to {}:{} - {}".format(hostname, port, e))
+            return None
+
         ctx = SSL.Context(SSL.SSLv23_METHOD)
         ctx.check_hostname = False
         ctx.verify_mode = SSL.VERIFY_NONE
@@ -177,14 +186,15 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         for host, monitor_id in hosts.items():
             parsed = urlparse(host)
             hostinfo = self.get_certificate(parsed.hostname, int(parsed.port) if parsed.port else 443)
-            notafter=hostinfo.cert.not_valid_after
 
-            now = datetime.now()
-            expires = (notafter - now).days
-            logger.info("Certificate for {} (MonitorID: {}) expires in {} days: {}".format(parsed.hostname, monitor_id, expires, "ERROR" if expires < self.minduration else "OK"))
-            
-            if expires < self.minduration:
-                self.reportCertExpiryEvent(hostinfo, expires, monitor_id)
+            if hostinfo is not None:
+                notafter=hostinfo.cert.not_valid_after
+                now = datetime.now()
+                expires = (notafter - now).days
+                logger.info("Certificate for {} (MonitorID: {}) expires in {} days: {}".format(parsed.hostname, monitor_id, expires, "ERROR" if expires < self.minduration else "OK"))
+                
+                if expires < self.minduration:
+                    self.reportCertExpiryEvent(hostinfo, expires, monitor_id)
 
     def reportCertExpiryEvent(self, hostinfo, expires, monitor_id):
         start = datetime.now()
@@ -218,7 +228,3 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             logger.info(response.json())
         except:
             logger.error("There was a problem posting error event to Dynatrace!")
-
-
-
-    
