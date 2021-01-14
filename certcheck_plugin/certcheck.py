@@ -206,6 +206,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                     "start": int(datetime.timestamp(start)*1000),
                     "end": int(datetime.timestamp(end)*1000),
                     "timeoutMinutes": self.problemtimeout,
+                    "title": "SSL Certificate about to expire",
                     "description": "The SSL certificate for {} will expire in {} days!".format(hostinfo.hostname, expires),
                     "attachRules": { "entityIds": [ monitor_id ] },
                     "source": "Certificate Checker Active Gate Plugin",
