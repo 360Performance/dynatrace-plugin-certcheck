@@ -96,7 +96,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             else:
                 logger.error("Getting monitors returned {}: {}".format(m_id,response.status_code,result))
         except:
-            logger.error("Error while trying to get synthetic monitors for {}::{}".format(clusterid,tenantid))
+            logger.error("Error while trying to get synthetic monitors from {}".format(url))
 
         #logger.info(monitors)
         return monitors
