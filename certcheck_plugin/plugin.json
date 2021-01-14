@@ -1,7 +1,7 @@
 {
     "name": "custom.remote.python.certcheck",
     "metricGroup": "tech.ssl",
-    "version": "1.3",
+    "version": "1.17",
     "experimentalMinVersion": "0.99",
     "productiveMinVersion": "1.0",
     "type": "python",
@@ -41,6 +41,14 @@
             "type": "Dropdown",
             "defaultValue": "15 minutes",
             "dropdownValues": ["15 minutes", "30 minutes", "1 hours","2 hours","6 hours","12 hours","24 hours"]
+        },
+        {
+            "key": "proxy_addr",
+            "type": "String"
+        },
+        {
+            "key": "proxy_port",
+            "type": "Integer"
         }
     ],
     "configUI": {
@@ -75,6 +83,18 @@
                 "displayName": "Dynatrace API token",
                 "displayHint": "auth-token",
                 "displayOrder": 5
+            },
+            {
+                "key": "proxy_addr",
+                "displayName": "Address of the proxy to connect via (optional)",
+                "displayHint": "my.proxy.local",
+                "displayOrder": 6
+            },
+            {
+                "key": "proxy_port",
+                "displayName": "Port of the proxy server (optional)",
+                "displayHint": "3128",
+                "displayOrder": 7
             }
         ]
     },

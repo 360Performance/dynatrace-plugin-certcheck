@@ -48,6 +48,8 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         self.tag = self.config["tag"]
         self.interval = self.config["interval"]
         self.server = "https://localhost:9999/e/"+self.tenant   # this is an active gate plugin so it can call the DT API on localhost
+        self.proxy_addr = self.config["proxy_addr"]
+        self.proxy_port = self.config["proxy_port"]
         self.problemtimeout = 15
 
 
@@ -135,12 +137,21 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         return hosts
 
     def get_certificate(self, hostname, port):
+        connect_addr = (hostname, port)
+        connect = ""
+        if self.proxy_addr:
+            connect_addr = (self.proxy_addr, self.proxy_port)
+            connect = "CONNECT {}:{} HTTP/1.0\r\nConnection: close\r\n\r\n".format(hostname, port)
+
         hostname_idna = idna.encode(hostname)
-        sock = socket()
+        sock = socket(AF_INET, SOCK_STREAM)
 
         try:
             #sock.settimeout(30.0)
-            sock.connect((hostname, port))
+            sock.connect(connect_addr)
+            if connect:             #proxied SSL connection
+                sock.send(connect)
+
             peername = sock.getpeername()
         except Exception as e:
             logger.error("Failed to connect to {}:{} - {}".format(hostname, port, e))
