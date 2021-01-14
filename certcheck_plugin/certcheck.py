@@ -150,21 +150,35 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             #sock.settimeout(30.0)
             sock.connect(connect_addr)
             if connect:             #proxied SSL connection
-                sock.send(connect)
+                sock.send(connect.encode('utf-8'))
+                sock.recv(4096) 
 
             peername = sock.getpeername()
         except Exception as e:
             logger.error("Failed to connect to {}:{} - {}".format(hostname, port, e))
             return None
 
-        ctx = SSL.Context(SSL.SSLv23_METHOD)
+        ctx = SSL.Context(SSL.TLSv1_2_METHOD)
+        '''
+        SSL.SSLv2_METHOD
+        SSL.SSLv3_METHOD
+        SSL.SSLv23_METHOD
+        SSL.TLSv1_METHOD
+        SSL.TLSv1_1_METHOD
+        SSL.TLSv1_2_METHOD
+        '''
         ctx.check_hostname = False
         ctx.verify_mode = SSL.VERIFY_NONE
 
         sock_ssl = SSL.Connection(ctx, sock)
         sock_ssl.set_connect_state()
         sock_ssl.set_tlsext_host_name(hostname_idna)
-        sock_ssl.do_handshake()
+        try:
+            sock_ssl.do_handshake()
+        except Exception as e:
+            logger.error("SSL Handshake error when connecting to {}:{} (using proxy: {}): {}. Please make sure the host is reachable and supports TLSv1.2!".format(hostname, port, "true" if connect else "false", e))
+            return None
+
         cert = sock_ssl.get_peer_certificate()
         crypto_cert = cert.to_cryptography()
         sock_ssl.close()
