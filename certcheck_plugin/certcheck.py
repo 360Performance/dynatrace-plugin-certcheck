@@ -110,8 +110,8 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                         diff_min = int((now_TS - start_TS)/1000/60)
                         logger.info("A problem for {} is already open for {} minutes".format(event["entityName"], diff_min))
 
-                        if diff_min > self.problemtimeout - self.refreshcheck*2:
-                            monitors.update({event["entityId"]:event["entityName"]})
+                        #if diff_min > self.problemtimeout - self.refreshcheck*2:
+                        monitors.update({event["entityId"]:event["entityName"]})
             else:
                 logger.error("Getting events returned {}: {}".format(response.status_code,result))
         except Exception as e:
