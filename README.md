@@ -7,6 +7,8 @@ Compared to other solutions, this plugin doesn't need any extra configuration fo
 
 Also this plugin will not consume any licenses for custom metrics or DEM points, as it doesn't perform any extra synthetic requests or create metrics.
 
+Additionally the plugin will also fetch any open certificate timeout problems it created earlier and check and update those more frequently. This ensures that problems are automatically closed by the plugin should a expiring certificate get fixed. This allows to have a larger check interval (e.g. every day) but at the same time also ensures that open problems are closed immediately after fixing.
+
 ## How to use
 To use the plugin you will need an active gate that has the remoteplugin module installed (default for new active gates) and that is able to access the sites you want to monitor.
 The plugin works by contacting the Dynatrace API to fetch all configured synthetic montiors. It then determines the hosts that are configured in the synthetic requests and uses this information to perform an SSL validation check.
@@ -24,6 +26,7 @@ These configuration options are available for the plugin:
 - Select Synthetic Monitors by Tag: Limit the certificate check to synthetic monitors that are tagged with this tag. Only one tag is allowed.
 - Dynatrace Tenant UUID to report to: this is the tenant UUID that the plugin will get synthetic monitors from and report to (using the configured API token). Typically this will be the same tenant as the plugin is configured for. Only provide the tenant ID, not the full hostname.
 - Dynatrace API token: the API token with the permissions mentioned above
+- Proxy and proxy port: when specified the plugin will use the proxy to connect to the target hosts. This is especially helpful for restricted environments where the Active Gate doesn't have full internet access. 
 
 ## Further Options
 As the plugin as acces to the full certificate it would be rather easy to perform also other checks (e.g. hostname matches). This might be a future addition.
