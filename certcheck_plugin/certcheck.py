@@ -19,6 +19,7 @@ __status__ = "Production"
 
 from ruxit.api.base_plugin import RemoteBasePlugin
 from ruxit.api.exceptions import ConfigException
+from ruxit.select_plugins import BaseActivationContext, selectors
 import requests, urllib3, json
 import logging, sys, traceback, select
 from urllib.parse import urlencode, urlparse
@@ -34,7 +35,7 @@ from collections import namedtuple
 
 HostInfo = namedtuple(field_names='cert hostname peername', typename='HostInfo')
 datefmt = "%Y-%m-%d %H:%M:%S"
-SOURCE = "Certificate Checker Active Gate Plugin"
+SOURCE = "Certificate Checker AG Plugin"
 
 logger = logging.getLogger(__name__)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -53,6 +54,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         self.proxy_port = self.config["proxy_port"]
         self.problemtimeout = 120
         self.refreshcheck = 5
+        self.source = "{} ({})".format(SOURCE,self.activation.endpoint_name)
 
 
     def query(self, **kwargs):
@@ -103,7 +105,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             result = response.json()
             if response.status_code == requests.codes.ok:
                 for event in result["events"]:
-                    if "OPEN" in event["eventStatus"] and SOURCE in event["source"]:
+                    if "OPEN" in event["eventStatus"] and self.source in event["source"]:
                         start_TS =  int(event["startTime"])
                         now = datetime.now()
                         now_TS = int(datetime.timestamp(now)*1000)
@@ -275,7 +277,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                     "title": "SSL Certificate about to expire",
                     "description": "The SSL certificate for {} will expire in {} days!".format(hostinfo.hostname, expires),
                     "attachRules": { "entityIds": [ monitor_id ] },
-                    "source": SOURCE,
+                    "source": self.source,
                     "customProperties": {
                         "CommonName": self.get_common_name(hostinfo.cert),
                         "Issuer": self.get_issuer(hostinfo.cert),
