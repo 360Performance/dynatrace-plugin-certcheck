@@ -21,12 +21,20 @@ The plugin requires access to the Dynatrace API so you will need an API key with
 ### Configuration Options
 These configuration options are available for the plugin:
 
+![config options](./img/configuration.png?s=200)
+
 - Minimum Certificate Validity in Days: the threshold when the plugin should create an alert for a certificate that is about to expire
 - Time interval for checks: the interval at which the plugin should check certificates (it makes no sense to check every minute). Please note that the interval is calculated based on the current time and not the configuration time. E.g. "every 15 minutes" will mean the check is performed at the full hour, 15 past, 30 past, 45 past the full hour. Likewise every "2 hours" means at 2am, 4am, ... 12am. 
 - Select Synthetic Monitors by Tag: Limit the certificate check to synthetic monitors that are tagged with this tag. Only one tag is allowed.
 - Dynatrace Tenant UUID to report to: this is the tenant UUID that the plugin will get synthetic monitors from and report to (using the configured API token). Typically this will be the same tenant as the plugin is configured for. Only provide the tenant ID, not the full hostname.
 - Dynatrace API token: the API token with the permissions mentioned above
 - Proxy and proxy port: when specified the plugin will use the proxy to connect to the target hosts. This is especially helpful for restricted environments where the Active Gate doesn't have full internet access. 
+
+### Problem Events
+When the a certificate check fails the plugin will post a problem opening event to Dynatrace (and update is consequently), which contains information about the expiry time and additional certificate information.
+As the problem is thereafter updated regulary by the plugin the expiry information will adapt accordingly.
+
+![config options](./img/problem.png?s=200)
 
 ## Further Options
 As the plugin as acces to the full certificate it would be rather easy to perform also other checks (e.g. hostname matches). This might be a future addition.
