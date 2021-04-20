@@ -1,7 +1,7 @@
 {
     "name": "custom.remote.python.certcheck",
     "metricGroup": "tech.ssl",
-    "version": "1.7",
+    "version": "1.8",
     "experimentalMinVersion": "0.99",
     "productiveMinVersion": "1.0",
     "type": "python",
@@ -27,6 +27,10 @@
         {
             "key": "tag",
             "type": "String"
+        },
+        {
+            "key": "consider_disabled",
+            "type": "Boolean"
         },
         {
             "key": "tenantUUID",
@@ -68,33 +72,38 @@
             },
             {
                 "key": "tag",
-                "displayName": "Select Synthetic Monitors by Tag",
+                "displayName": "Select synthetic monitors by tag",
                 "displayHint": "mytag",
                 "displayOrder": 3
+            },
+            {
+                "key": "consider_disabled",
+                "displayName": "Consider disabled monitors in checks",
+                "displayOrder": 4
             },
             {
                 "key": "tenantUUID",
                 "displayName": "Dynatrace Tenant UUID to report to",
                 "displayHint": "mytenant",
-                "displayOrder": 4
+                "displayOrder": 5
             },
             {
                 "key": "apitoken",
                 "displayName": "Dynatrace API token",
                 "displayHint": "auth-token",
-                "displayOrder": 5
+                "displayOrder": 6
             },
             {
                 "key": "proxy_addr",
                 "displayName": "Address of the proxy to connect via (optional)",
                 "displayHint": "my.proxy.local",
-                "displayOrder": 6
+                "displayOrder": 7
             },
             {
                 "key": "proxy_port",
                 "displayName": "Port of the proxy server (optional)",
                 "displayHint": "3128",
-                "displayOrder": 7
+                "displayOrder": 8
             }
         ]
     },

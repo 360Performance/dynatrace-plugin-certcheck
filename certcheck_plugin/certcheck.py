@@ -48,6 +48,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         self.tenant = self.config["tenantUUID"]
         self.apitoken = self.config["apitoken"]
         self.tag = self.config["tag"]
+        self.consider_disabled = self.config["consider_disabled"]
         self.interval = self.config["interval"]
         self.server = "https://localhost:9999/e/"+self.tenant   # this is an active gate plugin so it can call the DT API on localhost
         self.proxy_addr = self.config["proxy_addr"]
@@ -125,6 +126,8 @@ class CertificateCheckPlugin(RemoteBasePlugin):
     def getSyntheticMonitors(self):
         apiurl = "/api/v1/synthetic/monitors"
         parameters = {"tag":self.tag, "enabled":"true"}
+        if self.consider_disabled:
+            del parameters["enabled"]
         query = "?"+urlencode(parameters)
         headers = {"Authorization": "Api-Token {}".format(self.apitoken)}
         url = self.server + apiurl + query
