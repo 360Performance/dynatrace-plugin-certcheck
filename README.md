@@ -17,6 +17,7 @@ The plugin requires access to the Dynatrace API so you will need an API key with
 - Access problem and event feed, metrics, and topology
 - DataIngest, e.g. metrics and events
 - Read synthetic monitors, locations, and nodes
+- ExternalSyntheticIntegration, Create and read synthetic monitors, locations, and nodes
 
 ### Configuration Options
 These configuration options are available for the plugin:
