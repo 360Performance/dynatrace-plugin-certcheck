@@ -92,6 +92,19 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             hosts = self.getSSLCheckHosts(monitors)
             self.getCertExpiry(hosts, False)
 
+    # ingest custom metrics to Dynatrace (using etrics API as it provides more flexibility)
+    def ingestMetrics(self, data):
+        apiurl = "/api/v2/metrics/ingest"
+        headers = {"Authorization": "Api-Token {}".format(self.apitoken), "Content-Type": "text/plain"}
+        url = self.server + apiurl
+        for line in data:
+            try:
+                response = requests.post(url, headers=headers, verify=False, data=line)
+                if response.status_code != 202:
+                    logger.info("Ingesting metrics failed: {} {}".format("\n".join(response, line)))
+            except:
+                logger.error("Metric ingestion failed: {}".format(response, line))
+
     def getMonitorsWithOpenEvents(self):
         # get all open events created by this plugin and check them again.
         # this is to avoid that the events expire if a longer execution interval than 120min (maximum event duration) is selected
@@ -253,6 +266,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             return None
 
     def getCertExpiry(self, hosts, clear):
+        metricdata = []
         for host, monitor_id in hosts.items():
             parsed = urlparse(host)
             hostinfo = self.get_certificate(parsed.hostname, int(parsed.port) if parsed.port else 443)
@@ -268,6 +282,12 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                 else:
                     if clear:
                         self.reportCertExpiryEvent(hostinfo, expires, monitor_id, True)
+                
+                metricdata.append("threesixty-perf.certificates.daystoexpiry,hostname=\"{}\" {:.2f}".format(parsed.hostname,expires))
+        
+        #optionally report days left to expire as metric        
+        if self.reportmetric:
+            self.ingestMetrics(metricdata)
   
     def reportCertExpiryEvent(self, hostinfo, expires, monitor_id, clear):
         notbefore = hostinfo.cert.not_valid_before
