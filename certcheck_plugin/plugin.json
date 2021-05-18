@@ -1,7 +1,7 @@
 {
     "name": "custom.remote.python.certcheck",
     "metricGroup": "tech.ssl",
-    "version": "1.8",
+    "version": "1.9",
     "experimentalMinVersion": "0.99",
     "productiveMinVersion": "1.0",
     "type": "python",
@@ -30,6 +30,10 @@
         },
         {
             "key": "consider_disabled",
+            "type": "Boolean"
+        },
+        {
+            "key": "reportmetric",
             "type": "Boolean"
         },
         {
@@ -82,28 +86,33 @@
                 "displayOrder": 4
             },
             {
+                "key": "reportmetric",
+                "displayName": "Report certificate expiry days as metrics",
+                "displayOrder": 5
+            },
+            {
                 "key": "tenantUUID",
                 "displayName": "Dynatrace Tenant UUID to report to",
                 "displayHint": "mytenant",
-                "displayOrder": 5
+                "displayOrder": 6
             },
             {
                 "key": "apitoken",
                 "displayName": "Dynatrace API token",
                 "displayHint": "auth-token",
-                "displayOrder": 6
+                "displayOrder": 7
             },
             {
                 "key": "proxy_addr",
                 "displayName": "Address of the proxy to connect via (optional)",
                 "displayHint": "my.proxy.local",
-                "displayOrder": 7
+                "displayOrder": 8
             },
             {
                 "key": "proxy_port",
                 "displayName": "Port of the proxy server (optional)",
                 "displayHint": "3128",
-                "displayOrder": 8
+                "displayOrder": 9
             }
         ]
     },
