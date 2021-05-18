@@ -49,6 +49,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         self.apitoken = self.config["apitoken"]
         self.tag = self.config["tag"]
         self.consider_disabled = self.config["consider_disabled"]
+        self.reportmetric = self.config["reportmetric"]
         self.interval = self.config["interval"]
         self.server = "https://localhost:9999/e/"+self.tenant   # this is an active gate plugin so it can call the DT API on localhost
         self.proxy_addr = self.config["proxy_addr"]
