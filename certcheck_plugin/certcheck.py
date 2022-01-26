@@ -74,7 +74,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             minute = int(self.interval.strip().split()[0])
             run = (time_minute%minute == 0)
         
-        logger.info("Set to run every {}, it is now {:02d}:{:02d}. Check will{}run!".format(self.interval,time_hour, time_minute, " " if run else " not "))
+        #logger.info("Set to run every {}, it is now {:02d}:{:02d}. Check will{}run!".format(self.interval,time_hour, time_minute, " " if run else " not "))
         
         # get monitors with openevents that are about to timeout, ensure refresh in time or proactively close if no reason to keep them open
         # this also ensures clearance of problems that are fixed
@@ -227,6 +227,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         '''
         ctx.check_hostname = False
         ctx.verify_mode = SSL.VERIFY_NONE
+        ctx.set_options(SSL.OP_NO_TLSv1_3)
 
         sock.setblocking(1)
         sock_ssl = SSL.Connection(ctx, sock)
