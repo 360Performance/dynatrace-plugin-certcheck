@@ -28,6 +28,7 @@ from datetime import datetime, timedelta, timezone
 from OpenSSL import SSL
 from cryptography import x509
 from cryptography.x509.oid import NameOID
+from cryptography.x509.oid import ExtensionOID
 import idna
 
 from socket import socket, AF_INET, SOCK_STREAM
@@ -251,7 +252,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             ext = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName)
             return ext.value.get_values_for_type(x509.DNSName)
         except x509.ExtensionNotFound:
-            return None
+            return []
 
     def get_common_name(self, cert):
         try:
@@ -266,6 +267,22 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             return names[0].value
         except x509.ExtensionNotFound:
             return None
+
+    def get_extension(self, cert, oid):
+        try:
+            return cert.extensions.get_extension_for_oid(oid)
+        except x509.ExtensionNotFound:
+            return None
+
+    def validateHostname(self, hostname, cert):
+        if hostname.casefold() == self.get_common_name(cert):
+            return True
+        
+        for altname in self.get_alt_names(cert):
+            if hostname.endswith(altname.split('*')[-1]):
+                return True
+        
+        return False
 
     def getCertExpiry(self, hosts, clear):
         metricdata = []
@@ -286,14 +303,25 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                         self.reportCertExpiryEvent(hostinfo, expires, monitor_id, True)
                 
                 metricdata.append("threesixty-perf.certificates.daystoexpiry,hostname=\"{}\" {:.2f}".format(parsed.hostname,expires))
+
+                # also perform a hostname check against the certificate
+                # not performing this on the SSL connection level to allow the use of self-signed certificates without the need to import the CA to the active gate
+                if not self.validateHostname(parsed.hostname, hostinfo.cert):
+                    self.reportHostnameMismatchEvent(hostinfo, monitor_id)
+
         
         #optionally report days left to expire as metric        
         if self.reportmetric:
             self.ingestMetrics(metricdata)
-  
+    
+    def reportHostnameMismatchEvent(self, hostinfo, monitor_id):
+        pass
+
     def reportCertExpiryEvent(self, hostinfo, expires, monitor_id, clear):
         notbefore = hostinfo.cert.not_valid_before
         notafter = hostinfo.cert.not_valid_after
+
+        validHostname = self.validateHostname(hostinfo.hostname, hostinfo.cert)
 
         timeout = 1 if clear else self.problemtimeout
         event = {
@@ -304,10 +332,12 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                     "attachRules": { "entityIds": [ monitor_id ] },
                     "source": self.source,
                     "customProperties": {
-                        "CommonName": self.get_common_name(hostinfo.cert),
+                        "Common Name": self.get_common_name(hostinfo.cert),
                         "Issuer": self.get_issuer(hostinfo.cert),
-                        "NotBefore": notbefore.strftime(datefmt),
-                        "NotAfter": notafter.strftime(datefmt)
+                        "Not Before": notbefore.strftime(datefmt),
+                        "Not After": notafter.strftime(datefmt),
+                        "Alternative Names": ", ".join(self.get_alt_names(hostinfo.cert)),
+                        "Hostname verified": "Yes" if validHostname else "No"
                     },
                     "allowDavismerge": "false"
                 }
@@ -319,7 +349,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         data = json.dumps(event)
         try:
             response = requests.post(url, json=event, headers=headers, verify=False)
-            logger.info("{} problem with timeout: {}".format("Closeing existing" if clear else "Refreshing/opening new", timeout))
+            logger.info("{} problem with timeout: {} - Response: {}".format("Closing existing" if clear else "Refreshing/opening new", timeout, response.status_code))
             #logger.info(response.json())
         except:
             logger.error("There was a problem posting error event to Dynatrace!")
