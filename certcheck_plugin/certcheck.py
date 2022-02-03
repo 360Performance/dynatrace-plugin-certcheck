@@ -35,8 +35,11 @@ from socket import socket, AF_INET, SOCK_STREAM
 from collections import namedtuple
 
 HostInfo = namedtuple(field_names='cert hostname peername', typename='HostInfo')
+CheckInfo = namedtuple(field_names='url id expire proxy', typename='CheckInfo')
 datefmt = "%Y-%m-%d %H:%M:%S"
-SOURCE = "Certificate Checker AG Plugin"
+SOURCE = "Certificate Checker AG Plugin (by 360performance.net)"
+TAG_PROXY="SSLCheckProxy"
+TAG_EXPIRE="SSLCheckExpire"
 
 logger = logging.getLogger(__name__)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -57,7 +60,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         self.proxy_port = self.config["proxy_port"]
         self.problemtimeout = 120
         self.refreshcheck = 5
-        self.source = "{} ({})".format(SOURCE,self.activation.endpoint_name)
+        self.source = "{} (Endpoint config: {})".format(SOURCE,self.activation.endpoint_name)
 
 
     def query(self, **kwargs):
@@ -84,7 +87,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             refreshmonitors = self.getMonitorsWithOpenEvents()
             # check those with open problems if a clearance would be possible (check more frequently than others)
             hosts = self.getSSLCheckHosts(refreshmonitors)
-            logger.info("Refreshing open problems for: {}".format(list(hosts.keys())))
+            logger.info("Refreshing open problems for: {}".format([h.url for h in hosts]))
             self.getCertExpiry(hosts, True)
 
         # regular run with all monitors at defined interval
@@ -166,7 +169,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         headers = {"Authorization": "Api-Token {}".format(self.apitoken)}
         url = self.server + apiurl
 
-        hosts = {}
+        hosts = []
         session = requests.session()
         session.verify = False
         session.headers = headers
@@ -181,23 +184,41 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                         request_key = "requests"
                     if result["type"] == "BROWSER":
                         request_key = "events"
+
+                    #check for special config tags
+                    proxy = expire = None
+                    for tag in result["tags"]:
+                        if tag["key"] == TAG_PROXY:
+                            proxy = tag["value"]
+                        if tag["key"] == TAG_EXPIRE:
+                            expire = tag["value"]
                     
                     for req in m_requests[request_key]:
                         parsed = urlparse(req["url"])
                         if parsed.scheme == "https":
-                            hosts.update({"{}://{}{}".format(parsed.scheme, parsed.hostname, "" if not parsed.port else ":"+str(parsed.port)) : m_id})
+                            #hosts.update({"{}://{}{}".format(parsed.scheme, parsed.hostname, "" if not parsed.port else ":"+str(parsed.port)) : m_id})
+                            hosts.append(CheckInfo(url="{}://{}{}".format(parsed.scheme, parsed.hostname, "" if not parsed.port else ":"+str(parsed.port)), 
+                                                   id=m_id,
+                                                   expire=expire,
+                                                   proxy=proxy
+                                                  ))
+                            break
                 else:
                     logger.error("Getting monitor details for {} returned {}: {}".format(m_id,response.status_code,result))
             except:
-                logger.error("Error while trying to get synthetic hosts") 
+                logger.error("Error while trying to get synthetic hosts: {}".format(traceback.format_exc())) 
         
         return hosts
 
-    def get_certificate(self, hostname, port):
+    def get_certificate(self, hostname, port, proxy):
         connect_addr = (hostname, port)
         connect = ""
         if self.proxy_addr:
             connect_addr = (self.proxy_addr, self.proxy_port)
+            connect = "CONNECT {}:{} HTTP/1.0\r\nConnection: close\r\n\r\n".format(hostname, port)
+        if proxy:
+            parsed = urlparse("//"+proxy)
+            connect_addr = (parsed.hostname, parsed.port)
             connect = "CONNECT {}:{} HTTP/1.0\r\nConnection: close\r\n\r\n".format(hostname, port)
 
         hostname_idna = idna.encode(hostname)
@@ -214,7 +235,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
 
             peername = sock.getpeername()
         except Exception as e:
-            logger.error("Failed to connect to {}:{} - {}".format(hostname, port, e))
+            logger.error("Failed to connect to {}:{} {} - {}".format(hostname, port, "via proxy: {}".format(connect_addr) if connect else "", e))
             return None
 
         ctx = SSL.Context(SSL.TLSv1_2_METHOD)
@@ -286,28 +307,29 @@ class CertificateCheckPlugin(RemoteBasePlugin):
 
     def getCertExpiry(self, hosts, clear):
         metricdata = []
-        for host, monitor_id in hosts.items():
-            parsed = urlparse(host)
-            hostinfo = self.get_certificate(parsed.hostname, int(parsed.port) if parsed.port else 443)
+        for host in hosts:
+            parsed = urlparse(host.url)
+            hostinfo = self.get_certificate(parsed.hostname, int(parsed.port) if parsed.port else 443, host.proxy)
 
             if hostinfo is not None:
                 notafter=hostinfo.cert.not_valid_after
                 now = datetime.now()
                 expires = (notafter - now).days
-                logger.info("Certificate for {} (MonitorID: {}) expires in {} days: {}".format(parsed.hostname, monitor_id, expires, "ERROR" if expires < self.minduration else "OK"))
+                expire = int(host.expire) if host.expire else self.minduration
+                logger.info("Certificate for {} (MonitorID: {}) expires in {} days: {}".format(parsed.hostname, host.id, expires, "ERROR" if expires < expire else "OK"))
                 
-                if expires < self.minduration:
-                    self.reportCertExpiryEvent(hostinfo, expires, monitor_id, False)
+                if expires < expire:
+                    self.reportCertExpiryEvent(hostinfo, expires, host.id, False)
                 else:
                     if clear:
-                        self.reportCertExpiryEvent(hostinfo, expires, monitor_id, True)
+                        self.reportCertExpiryEvent(hostinfo, expires, host.id, True)
                 
                 metricdata.append("threesixty-perf.certificates.daystoexpiry,hostname=\"{}\" {:.2f}".format(parsed.hostname,expires))
 
                 # also perform a hostname check against the certificate
                 # not performing this on the SSL connection level to allow the use of self-signed certificates without the need to import the CA to the active gate
                 if not self.validateHostname(parsed.hostname, hostinfo.cert):
-                    self.reportHostnameMismatchEvent(hostinfo, monitor_id)
+                    self.reportHostnameMismatchEvent(hostinfo, host.id)
 
         
         #optionally report days left to expire as metric        
