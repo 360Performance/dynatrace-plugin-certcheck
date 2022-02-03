@@ -42,8 +42,8 @@ As the problem is thereafter updated regulary by the plugin the expiry informati
 ## Configuration via Tags
 To add more configuration flexibility it is possible to pass per-site settings to the plugin via tags on the Synthetic monitor. (e.g this enables non-admin Dynatrace users with no access to global plugin configuration to somewhat customize their checks). Currently you can override the expiry duration and the proxy configuration that should be used for a SSL endpoint by providing these two tags (case sensitive):
 
-- Key: "SSLCheckExpire" Value: <Number - days to warn before certificate expiration>
-- Key: "SSLCheckProxy" Value: <hostname>:<port> - proxy and port to use for establishing SSL connection
+- Key: "SSLCheckExpire" Value: "number" - days to warn before certificate expiration>
+- Key: "SSLCheckProxy" Value: "hostname:port" - proxy and port to use for establishing SSL connection
 
 
 ## Donations
