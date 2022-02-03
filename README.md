@@ -1,4 +1,4 @@
-# A Dynatrace Remote Plugin to Monitor SSL Certificate Expiry
+# A Dynatrace Plugin to Monitor SSL Certificates
 This active gate remote plugin enhances Dynatrace synthetic monitoring capabilities by checking the expiry date of SSL certificates.
 It overcomes the limitation by executing checks against the endpoints that are already configured in Dynatrace's synthetic tests and will post any problems to these synthetic test entities.
 
