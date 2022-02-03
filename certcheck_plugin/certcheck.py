@@ -339,7 +339,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                         "Alternative Names": ", ".join(self.get_alt_names(hostinfo.cert)),
                         "Hostname verified": "Yes" if validHostname else "No"
                     },
-                    "allowDavismerge": "false"
+                    "allowDavisMerge": "false"
                 }
         
         apiurl = "/api/v1/events"
