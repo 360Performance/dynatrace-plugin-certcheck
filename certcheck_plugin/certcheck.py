@@ -59,7 +59,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         self.server = "https://localhost:9999/e/"+self.tenant   # this is an active gate plugin so it can call the DT API on localhost
         self.proxy_addr = self.config["proxy_addr"]
         self.proxy_port = self.config["proxy_port"]
-        self.problemtimeout = 120
+        self.problemtimeout = 10
         self.refreshcheck = 5
         self.source = "{} (Endpoint config: {})".format(SOURCE,self.activation.endpoint_name)
 
@@ -120,7 +120,11 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             response = requests.get(url, params=parameters, headers=headers, verify=False)
             result = response.json()
             if response.status_code == requests.codes.ok:
-                return len(result["problems"]) > 0
+                if len(result["problems"]) > 0:
+                    logger.info("{} open problems for {}".format(len(result["problems"]),entityId))
+                    return True
+                else:
+                    return False
         except Exception as e:
             logger.error("Error while getting open problem status {}: {}".format(url, e))
 
