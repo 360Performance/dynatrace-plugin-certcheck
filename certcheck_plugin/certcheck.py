@@ -38,6 +38,7 @@ HostInfo = namedtuple(field_names='cert hostname peername', typename='HostInfo')
 CheckInfo = namedtuple(field_names='url id expire proxy', typename='CheckInfo')
 datefmt = "%Y-%m-%d %H:%M:%S"
 SOURCE = "Certificate Checker AG Plugin (by 360performance.net)"
+PROBLEM_TITLE = "SSL Certificate about to expire"
 TAG_PROXY="SSLCheckProxy"
 TAG_EXPIRE="SSLCheckExpire"
 
@@ -58,7 +59,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         self.server = "https://localhost:9999/e/"+self.tenant   # this is an active gate plugin so it can call the DT API on localhost
         self.proxy_addr = self.config["proxy_addr"]
         self.proxy_port = self.config["proxy_port"]
-        self.problemtimeout = 120
+        self.problemtimeout = 10
         self.refreshcheck = 5
         self.source = "{} (Endpoint config: {})".format(SOURCE,self.activation.endpoint_name)
 
@@ -110,11 +111,33 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             except:
                 logger.error("Metric ingestion failed: {}".format(response, line))
 
+    def isProblemOpen(self,entityId):
+        apiurl = "/api/v2/problems"
+        parameters = {"problemSelector": "impactedEntities(\"{}\"),status(\"OPEN\"),text(\"{}\")".format(entityId, PROBLEM_TITLE), "from": "now-{}m".format(self.refreshcheck)}
+        headers = {"Authorization": "Api-Token {}".format(self.apitoken)}
+        url = self.server + apiurl
+        try:
+            response = requests.get(url, params=parameters, headers=headers, verify=False)
+            result = response.json()
+            if response.status_code == requests.codes.ok:
+                if len(result["problems"]) > 0:
+                    logger.info("{} open problems for {}".format(len(result["problems"]),entityId))
+                    return True
+                else:
+                    return False
+        except Exception as e:
+            logger.error("Error while getting open problem status {}: {}".format(url, e))
+
+
+
     def getMonitorsWithOpenEvents(self):
         # get all open events created by this plugin and check them again.
         # this is to avoid that the events expire if a longer execution interval than 120min (maximum event duration) is selected
-        apiurl = "/api/v1/events"
-        parameters = {"eventType": "ERROR_EVENT", "relativeTime": "10mins"}
+        # if a problem gets manually closed we need to make sure that the event also expires so that eventually a new problem can be opened.
+        # so we check the open problem AND the event if no open problem exists we do not refresh the event but let it expire, once it expires a new problem will be opened
+
+        apiurl = "/api/v2/events"
+        parameters = {"eventSelector": "eventType(\"ERROR_EVENT\"),status(\"OPEN\"),property.dt.event.source(\"{}\")".format(self.source), "from": "now-{}m".format(self.refreshcheck)}
         headers = {"Authorization": "Api-Token {}".format(self.apitoken)}
         url = self.server + apiurl
 
@@ -124,22 +147,22 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             result = response.json()
             if response.status_code == requests.codes.ok:
                 for event in result["events"]:
-                    if "OPEN" in event["eventStatus"] and self.source in event["source"]:
-                        start_TS =  int(event["startTime"])
-                        now = datetime.now()
-                        now_TS = int(datetime.timestamp(now)*1000)
-                        diff_min = int((now_TS - start_TS)/1000/60)
-                        logger.info("A problem for {} is already open for {} minutes".format(event["entityName"], diff_min))
+                    start_TS =  int(event["startTime"])
+                    now = datetime.now()
+                    now_TS = int(datetime.timestamp(now)*1000)
+                    diff_min = int((now_TS - start_TS)/1000/60)
 
-                        #if diff_min > self.problemtimeout - self.refreshcheck*2:
-                        monitors.update({event["entityId"]:event["entityName"]})
+                    # for every open event there should also be an open problem (if not then it has been closed manually and we should reopen it)
+                    entityId = event["entityId"]["entityId"]["id"]
+                    if self.isProblemOpen(entityId):
+                        logger.info("A problem for {} is already open for {} minutes".format(event["entityId"]["name"], diff_min))
+                        monitors.update({event["entityId"]["entityId"]["id"]:event["entityId"]["name"]})
             else:
                 logger.error("Getting events returned {}: {}".format(response.status_code,result))
         except Exception as e:
             logger.error("Error while getting open events {}: {}".format(url, e))
 
         return monitors
-
 
     def getSyntheticMonitors(self):
         apiurl = "/api/v1/synthetic/monitors"
@@ -349,7 +372,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         event = {
                     "eventType": "ERROR_EVENT",
                     "timeoutMinutes": timeout,
-                    "title": "SSL Certificate about to expire",
+                    "title": PROBLEM_TITLE,
                     "description": "The SSL certificate for {} will expire in {} days!".format(hostinfo.hostname, expires),
                     "attachRules": { "entityIds": [ monitor_id ] },
                     "source": self.source,
