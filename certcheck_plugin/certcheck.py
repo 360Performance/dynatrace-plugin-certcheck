@@ -164,35 +164,6 @@ class CertificateCheckPlugin(RemoteBasePlugin):
 
         return monitors
 
-        '''
-        apiurl = "/api/v1/events"
-        parameters = {"eventType": "ERROR_EVENT", "relativeTime": "10mins"}
-        headers = {"Authorization": "Api-Token {}".format(self.apitoken)}
-        url = self.server + apiurl
-
-        monitors = {}
-        try:
-            response = requests.get(url, params=parameters, headers=headers, verify=False)
-            result = response.json()
-            if response.status_code == requests.codes.ok:
-                for event in result["events"]:
-                    if "OPEN" in event["eventStatus"] and self.source in event["source"]:
-                        start_TS =  int(event["startTime"])
-                        now = datetime.now()
-                        now_TS = int(datetime.timestamp(now)*1000)
-                        diff_min = int((now_TS - start_TS)/1000/60)
-                        logger.info("A problem for {} is already open for {} minutes".format(event["entityName"], diff_min))
-
-                        #if diff_min > self.problemtimeout - self.refreshcheck*2:
-                        monitors.update({event["entityId"]:event["entityName"]})
-            else:
-                logger.error("Getting events returned {}: {}".format(response.status_code,result))
-        except Exception as e:
-            logger.error("Error while getting open events {}: {}".format(url, e))
-
-        return monitors
-        '''
-
     def getSyntheticMonitors(self):
         apiurl = "/api/v1/synthetic/monitors"
         parameters = {"tag":self.tag, "enabled":"true"}
