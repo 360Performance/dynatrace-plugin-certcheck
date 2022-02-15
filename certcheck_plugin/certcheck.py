@@ -113,7 +113,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
 
     def isProblemOpen(self,entityId):
         apiurl = "/api/v2/problems"
-        parameters = {"problemSelector": "impactedEntities({}),status(OPEN),text({})".format(entityId, PROBLEM_TITLE), "from": "now-{}m".format(self.refreshcheck)}
+        parameters = {"problemSelector": "impactedEntities(\"{}\"),status(\"OPEN\"),text(\"{}\")".format(entityId, PROBLEM_TITLE), "from": "now-{}m".format(self.refreshcheck)}
         headers = {"Authorization": "Api-Token {}".format(self.apitoken)}
         url = self.server + apiurl
         try:
@@ -133,7 +133,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         # so we check the open problem AND the event if no open problem exists we do not refresh the event but let it expire, once it expires a new problem will be opened
 
         apiurl = "/api/v2/events"
-        parameters = {"eventSelector": "eventType(ERROR_EVENT),status(OPEN),property.dt.event.source({})".format(self.source), "from": "now-{}m".format(self.refreshcheck)}
+        parameters = {"eventSelector": "eventType(\"ERROR_EVENT\"),status(\"OPEN\"),property.dt.event.source(\"{}\")".format(self.source), "from": "now-{}m".format(self.refreshcheck)}
         headers = {"Authorization": "Api-Token {}".format(self.apitoken)}
         url = self.server + apiurl
 
@@ -151,8 +151,8 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                     # for every open event there should also be an open problem (if not then it has been closed manually and we should reopen it)
                     entityId = event["entityId"]["entityId"]["id"]
                     if self.isProblemOpen(entityId):
-                        logger.info("A problem for {} is already open for {} minutes".format(event["entityName"], diff_min))
-                        monitors.update({event["entityId"]:event["entityName"]})
+                        logger.info("A problem for {} is already open for {} minutes".format(event["entityId"]["name"], diff_min))
+                        monitors.update({event["entityId"]["entityId"]["id"]:event["entityId"]["name"]})
             else:
                 logger.error("Getting events returned {}: {}".format(response.status_code,result))
         except Exception as e:
