@@ -38,6 +38,7 @@ HostInfo = namedtuple(field_names='cert hostname peername', typename='HostInfo')
 CheckInfo = namedtuple(field_names='url id expire proxy', typename='CheckInfo')
 datefmt = "%Y-%m-%d %H:%M:%S"
 SOURCE = "Certificate Checker AG Plugin (by 360performance.net)"
+PROBLEM_TITLE = "SSL Certificate about to expire"
 TAG_PROXY="SSLCheckProxy"
 TAG_EXPIRE="SSLCheckExpire"
 
@@ -110,9 +111,56 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             except:
                 logger.error("Metric ingestion failed: {}".format(response, line))
 
+    def isProblemOpen(self,entityId):
+        apiurl = "/api/v2/problems"
+        parameters = {"problemSelector": "impactedEntities({}),status(OPEN),text({})".format(entityId, PROBLEM_TITLE), "from": "now-{}m".format(self.refreshcheck)}
+        headers = {"Authorization": "Api-Token {}".format(self.apitoken)}
+        url = self.server + apiurl
+        try:
+            response = requests.get(url, params=parameters, headers=headers, verify=False)
+            result = response.json()
+            if response.status_code == requests.codes.ok:
+                return len(result["problems"]) > 0
+        except Exception as e:
+            logger.error("Error while getting open problem status {}: {}".format(url, e))
+
+
+
     def getMonitorsWithOpenEvents(self):
         # get all open events created by this plugin and check them again.
         # this is to avoid that the events expire if a longer execution interval than 120min (maximum event duration) is selected
+        # if a problem gets manually closed we need to make sure that the event also expires so that eventually a new problem can be opened.
+        # so we check the open problem AND the event if no open problem exists we do not refresh the event but let it expire, once it expires a new problem will be opened
+
+        apiurl = "/api/v2/events"
+        parameters = {"eventSelector": "eventType(ERROR_EVENT),status(OPEN),property.dt.event.source({})".format(self.source), "from": "now-{}m".format(self.refreshcheck)}
+        headers = {"Authorization": "Api-Token {}".format(self.apitoken)}
+        url = self.server + apiurl
+
+        monitors = {}
+        try:
+            response = requests.get(url, params=parameters, headers=headers, verify=False)
+            result = response.json()
+            if response.status_code == requests.codes.ok:
+                for event in result["events"]:
+                    start_TS =  int(event["startTime"])
+                    now = datetime.now()
+                    now_TS = int(datetime.timestamp(now)*1000)
+                    diff_min = int((now_TS - start_TS)/1000/60)
+
+                    # for every open event there should also be an open problem (if not then it has been closed manually and we should reopen it)
+                    entityId = event["entityId"]["entityId"]["id"]
+                    if self.isProblemOpen(entityId):
+                        logger.info("A problem for {} is already open for {} minutes".format(event["entityName"], diff_min))
+                        monitors.update({event["entityId"]:event["entityName"]})
+            else:
+                logger.error("Getting events returned {}: {}".format(response.status_code,result))
+        except Exception as e:
+            logger.error("Error while getting open events {}: {}".format(url, e))
+
+        return monitors
+
+        '''
         apiurl = "/api/v1/events"
         parameters = {"eventType": "ERROR_EVENT", "relativeTime": "10mins"}
         headers = {"Authorization": "Api-Token {}".format(self.apitoken)}
@@ -139,7 +187,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             logger.error("Error while getting open events {}: {}".format(url, e))
 
         return monitors
-
+        '''
 
     def getSyntheticMonitors(self):
         apiurl = "/api/v1/synthetic/monitors"
@@ -349,7 +397,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         event = {
                     "eventType": "ERROR_EVENT",
                     "timeoutMinutes": timeout,
-                    "title": "SSL Certificate about to expire",
+                    "title": PROBLEM_TITLE,
                     "description": "The SSL certificate for {} will expire in {} days!".format(hostinfo.hostname, expires),
                     "attachRules": { "entityIds": [ monitor_id ] },
                     "source": self.source,
