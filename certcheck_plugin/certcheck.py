@@ -371,12 +371,13 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         timeout = 1 if clear else self.problemtimeout
         event = {
                     "eventType": "ERROR_EVENT",
-                    "timeoutMinutes": timeout,
+                    "timeout": timeout,
                     "title": PROBLEM_TITLE,
-                    "description": "The SSL certificate for {} will expire in {} days!".format(hostinfo.hostname, expires),
-                    "attachRules": { "entityIds": [ monitor_id ] },
-                    "source": self.source,
-                    "customProperties": {
+                    "entitySelector": "entityId({})".format(monitor_id), 
+                    "properties": {
+                        "dt.event.description": "The SSL certificate for {} will expire in {} days!".format(hostinfo.hostname, expires),
+                        "dt.event.source": self.source,
+                        "dt.event.allow_davis_merge": False,
                         "Common Name": self.get_common_name(hostinfo.cert),
                         "Issuer": self.get_issuer(hostinfo.cert),
                         "Not Before": notbefore.strftime(datefmt),
@@ -384,10 +385,9 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                         "Alternative Names": ", ".join(self.get_alt_names(hostinfo.cert)),
                         "Hostname verified": "Yes" if validHostname else "No"
                     },
-                    "allowDavisMerge": "false"
                 }
         
-        apiurl = "/api/v1/events"
+        apiurl = "/api/v2/events/ingest"
         headers = {"Content-type": "application/json", "Authorization": "Api-Token {}".format(self.apitoken)}
         url = self.server + apiurl
 
@@ -395,6 +395,5 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         try:
             response = requests.post(url, json=event, headers=headers, verify=False)
             logger.info("{} problem with timeout: {} - Response: {}".format("Closing existing" if clear else "Refreshing/opening new", timeout, response.status_code))
-            #logger.info(response.json())
         except:
-            logger.error("There was a problem posting error event to Dynatrace!")
+            logger.error("There was a problem posting error event to Dynatrace: ".format(traceback.format_exc()))
