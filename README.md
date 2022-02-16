@@ -14,9 +14,8 @@ To use the plugin you will need an active gate that has the remoteplugin module 
 The plugin works by contacting the Dynatrace API to fetch all configured synthetic montiors. It then determines the hosts that are configured in the synthetic requests and uses this information to perform an SSL validation check.
 
 The plugin requires access to the Dynatrace API so you will need an API key with these permissions:
-- Access problem and event feed, metrics, and topology
-- DataIngest, e.g. metrics and events
-- Read synthetic monitors, locations, and nodes
+- APIv2 scopes: event.ingest, event.read, problem.read, metrics.ingest
+- APIv1: Read synthetic monitors, locations, and nodes
 - ExternalSyntheticIntegration, Create and read synthetic monitors, locations, and nodes
 
 ### Configuration Options
