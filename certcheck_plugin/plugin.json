@@ -1,7 +1,7 @@
 {
     "name": "custom.remote.python.certcheck",
     "metricGroup": "tech.ssl",
-    "version": "1.18",
+    "version": "1.19",
     "experimentalMinVersion": "0.99",
     "productiveMinVersion": "1.0",
     "type": "python",
@@ -48,7 +48,7 @@
             "key": "interval",
             "type": "Dropdown",
             "defaultValue": "15 minutes",
-            "dropdownValues": ["15 minutes", "30 minutes", "1 hours","2 hours","6 hours","12 hours","24 hours"]
+            "dropdownValues": ["5 minutes","15 minutes", "30 minutes", "1 hours","2 hours","6 hours","12 hours","24 hours"]
         },
         {
             "key": "proxy_addr",
