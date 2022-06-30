@@ -372,7 +372,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         event = {
                     "eventType": "ERROR_EVENT",
                     "timeout": timeout,
-                    "title": PROBLEM_TITLE,
+                    "title": "{}".format(PROBLEM_TITLE),
                     "entitySelector": "entityId({})".format(monitor_id), 
                     "properties": {
                         "dt.event.description": "The SSL certificate for {} will expire in {} days!".format(hostinfo.hostname, expires),
