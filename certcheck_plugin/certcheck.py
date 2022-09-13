@@ -178,12 +178,14 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         url = self.server + apiurl + query
 
         monitors = {}
+        inactiveMonitors = {} # identify monitors that have a old last seen timestamp
         try:
             response = requests.get(url, headers=headers, verify=False)
             result = response.json()
             if response.status_code == requests.codes.ok:
                 for monitor in result["monitors"]:
                     monitors.update({monitor["entityId"]:monitor["name"]})
+                    if monitor["lastSeen"]
             else:
                 logger.error("Getting monitors returned {}: {}".format(response.status_code,result))
         except:
