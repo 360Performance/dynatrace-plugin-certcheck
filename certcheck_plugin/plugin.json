@@ -1,7 +1,7 @@
 {
     "name": "custom.remote.python.certcheck",
     "metricGroup": "tech.ssl",
-    "version": "1.26",
+    "version": "1.30",
     "experimentalMinVersion": "0.99",
     "productiveMinVersion": "1.0",
     "type": "python",

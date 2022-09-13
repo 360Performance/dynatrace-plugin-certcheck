@@ -185,7 +185,6 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             if response.status_code == requests.codes.ok:
                 for monitor in result["monitors"]:
                     monitors.update({monitor["entityId"]:monitor["name"]})
-                    if monitor["lastSeen"]
             else:
                 logger.error("Getting monitors returned {}: {}".format(response.status_code,result))
         except:
@@ -195,7 +194,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
 
     def getSSLCheckHosts(self, monitors):
         apiurl = "/api/v1/synthetic/monitors/:id"
-        headers = {"Authorization": "Api-Token {}".format(self.apitoken)}
+        headers = {"Content-type": "application/json", "Authorization": "Api-Token {}".format(self.apitoken)}
         url = self.server + apiurl
 
         hosts = []
@@ -208,6 +207,13 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                 response = session.get(m_url)
                 result = response.json()
                 if response.status_code == requests.codes.ok:
+                    # write back the monitor 1:1, this ensures it's entity is active and events can be posted to it
+                    # simple, dirty workaround for DT limitation
+                    putresp = session.put(m_url, json=result)
+                    logger.info("Touching monitor {} to avoid entity expiration of 24 hours: {}".format(m_id,putresp.status_code))
+                    if not putresp.ok:
+                        logger.info(putresp.json())
+
                     m_requests = result["script"]
                     if result["type"] == "HTTP":
                         request_key = "requests"
@@ -409,7 +415,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         # In case we are working with a disabled synthetic monitor, Dynatrace would consider the monitor as inactive and would not allow
         # adding events to it. See https://github.com/360Performance/dynatrace-plugin-certcheck/issues/13
         # To avoid this behavior we need to set the monitor into an active state. We can do so by leveraging the on-demand executions
-        self.triggerOnDemandExecution(monitor_id)
+        #self.triggerOnDemandExecution(monitor_id)
 
         notbefore = hostinfo.cert.not_valid_before
         notafter = hostinfo.cert.not_valid_after
