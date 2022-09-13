@@ -113,10 +113,11 @@ class CertificateCheckPlugin(RemoteBasePlugin):
 
     def isProblemOpen(self,entityId):
         apiurl = "/api/v2/problems"
-        parameters = {"problemSelector": "impactedEntities(\"{}\"),status(\"OPEN\"),text(\"{}\")".format(entityId, PROBLEM_TITLE), "from": "now-{}m".format(self.refreshcheck)}
+        parameters = {"problemSelector": "impactedEntities(\"{}\"),status(\"OPEN\"),text(\"{}\")".format(entityId, PROBLEM_TITLE[0:30]), "from": "now-{}m".format(self.refreshcheck)}
         headers = {"Authorization": "Api-Token {}".format(self.apitoken)}
         url = self.server + apiurl
         try:
+            logger.info("Getting monitors with open problems: {} {}".format(url,parameters))
             response = requests.get(url, params=parameters, headers=headers, verify=False)
             result = response.json()
             if response.status_code == requests.codes.ok:
@@ -125,6 +126,8 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                     return True
                 else:
                     return False
+            else:
+                logger.error("Checking problems for monitor {} failed with status: {}".format(entityId,response.status_code))
         except Exception as e:
             logger.error("Error while getting open problem status {}: {}".format(url, e))
 
@@ -137,12 +140,13 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         # so we check the open problem AND the event if no open problem exists we do not refresh the event but let it expire, once it expires a new problem will be opened
 
         apiurl = "/api/v2/events"
-        parameters = {"eventSelector": "eventType(\"ERROR_EVENT\"),status(\"OPEN\"),property.dt.event.source(\"{}\")".format(self.source), "from": "now-{}m".format(self.refreshcheck)}
+        parameters = {"eventSelector": "eventType(\"ERROR_EVENT\"),status(\"OPEN\"),property.dt.event.title(\"{}\")".format(PROBLEM_TITLE), "from": "now-{}m".format(self.refreshcheck)}
         headers = {"Authorization": "Api-Token {}".format(self.apitoken)}
         url = self.server + apiurl
 
         monitors = {}
         try:
+            logger.info("Getting monitors with open events: {} {}".format(url,parameters))
             response = requests.get(url, params=parameters, headers=headers, verify=False)
             result = response.json()
             if response.status_code == requests.codes.ok:
@@ -359,10 +363,52 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         if self.reportmetric:
             self.ingestMetrics(metricdata)
     
+    def triggerOnDemandExecution(self,monitor_id):
+        execution = {
+                        "processingMode": "DISABLE_PROBLEM_DETECTION",
+                        "failOnPerformanceIssue": "false",
+                        "stopOnProblem": "false",
+                        "monitors": [
+                            {
+                                "monitorId": "{}".format(monitor_id),
+                                "locations": []
+                            }
+                        ]
+                    }
+
+        apiurl = "/api/v2/synthetic/executions/batch"
+        headers = {"Content-type": "application/json", "Authorization": "Api-Token {}".format(self.apitoken)}
+        url = self.server + apiurl
+
+        data = json.dumps(execution)
+        try:
+            response = requests.post(url, json=execution, headers=headers, verify=False)
+            logger.info("Trigger on-demand execution of monitor: {} (to ensure Dynatrace considers it active)".format(monitor_id, response.status_code))
+
+            # reading on-demand trigger response
+            if response.status_code == requests.codes.ok:
+                result = response.json()
+                if result["triggeringProblemsCount"] == 0:
+                    executionId = result["triggered"][0]["executions"][0]["executionId"]
+                    logger.info("On-demand execution id: {}".format(executionId))
+                else:
+                    logger.info("On-demand execution failed: {}".format(result["triggeringProblemDetails"]))
+                    # in case monitors are disabled, maybe try to enable them automatically and set execution frequency to 0
+        except:
+            logger.error("There was a problem triggering on-demand execution".format(traceback.format_exc()))
+
+
+
     def reportHostnameMismatchEvent(self, hostinfo, monitor_id):
         pass
 
     def reportCertExpiryEvent(self, hostinfo, expires, monitor_id, clear):
+
+        # In case we are working with a disabled synthetic monitor, Dynatrace would consider the monitor as inactive and would not allow
+        # adding events to it. See https://github.com/360Performance/dynatrace-plugin-certcheck/issues/13
+        # To avoid this behavior we need to set the monitor into an active state. We can do so by leveraging the on-demand executions
+        self.triggerOnDemandExecution(monitor_id)
+
         notbefore = hostinfo.cert.not_valid_before
         notafter = hostinfo.cert.not_valid_after
 
