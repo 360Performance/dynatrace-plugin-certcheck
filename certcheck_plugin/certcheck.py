@@ -83,13 +83,12 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             minute = int(self.interval.strip().split()[0])
             run = (time_minute%minute == 0)
         
-        #logger.info("Set to run every {}, it is now {:02d}:{:02d}. Check will{}run!".format(self.interval,time_hour, time_minute, " " if run else " not "))
-        
         # get monitors with openevents that are about to timeout, ensure refresh in time or proactively close if no reason to keep them open
         # this also ensures clearance of problems that are fixed
         refreshmonitors = {}
         if (time_minute%self.refreshcheck == 0 and not run):
             refreshmonitors = self.getMonitorsWithOpenEvents()
+            logger.info("There are {} synthetic monitors with open certificate problems we need to check/refresh".format(len(refreshmonitors)))
             # check those with open problems if a clearance would be possible (check more frequently than others)
             hosts = self.getSSLCheckHosts(refreshmonitors)
             logger.info("Refreshing open problems for: {}".format([h.url for h in hosts]))
@@ -99,12 +98,14 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         monitors = {}
         if run:
             monitors = self.getSyntheticMonitors()
-            hosts = self.getSSLCheckHosts(monitors)
+            logger.info("There are {} synthetic monitors to perform SSL certificate checks for".format(len(monitors)))
 
             pool = ThreadPool(processes = 10)            
-            for host in hosts:
-                logger.info("checking SSL certificate for " + host.url)
-                pool.apply_async(self.getCertExpiry, ([host], False))
+            for m_id,m_name in monitors.items():
+                logger.info("Checking SSL certificate for {} ({})".format(m_id,m_name))
+                #m = {}
+                #m.update({m_id:m_name})
+                pool.apply_async(self.performSSLCheck, args=({m_id:m_name},))
             pool.close()
             pool.join()
             
@@ -126,6 +127,12 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                 pool.terminate()
                 pool.join()
                 logger.info(str(process_alive) + ' processes are alive. Terminating before finishing polling cycle')
+
+    def performSSLCheck(self,monitors):
+        logger.info("Performing SSL check for {}".format(monitors))
+        hosts = self.getSSLCheckHosts(monitors)
+        logger.info("Checking certificate on host: {}".format(hosts))
+        self.getCertExpiry(hosts, False)
 
 
     # ingest custom metrics to Dynatrace (using etrics API as it provides more flexibility)
@@ -243,7 +250,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                     # write back the monitor 1:1, this ensures it's entity is active and events can be posted to it
                     # simple, dirty workaround for DT limitation
                     putresp = session.put(m_url, json=result)
-                    logger.info("Touching monitor {} to avoid entity expiration of 24 hours: {}".format(m_id,putresp.status_code))
+                    logger.info("Touching monitor {} to avoid entity expiration of 24 hours - Result: {}".format(m_id,putresp.status_code))
                     if not putresp.ok:
                         logger.info(putresp.json())
 
