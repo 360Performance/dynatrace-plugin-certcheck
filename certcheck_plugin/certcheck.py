@@ -24,6 +24,9 @@ import requests, urllib3, json
 import logging, sys, traceback, select
 from urllib.parse import urlencode, urlparse
 from datetime import datetime, timedelta, timezone
+import _thread
+import time
+from multiprocessing.pool import ThreadPool
 
 from OpenSSL import SSL
 from cryptography import x509
@@ -62,6 +65,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         self.problemtimeout = 10
         self.refreshcheck = 5
         self.source = "{} (Endpoint config: {})".format(SOURCE,self.activation.endpoint_name)
+        self.start = time.time()
 
 
     def query(self, **kwargs):
@@ -79,13 +83,12 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             minute = int(self.interval.strip().split()[0])
             run = (time_minute%minute == 0)
         
-        #logger.info("Set to run every {}, it is now {:02d}:{:02d}. Check will{}run!".format(self.interval,time_hour, time_minute, " " if run else " not "))
-        
         # get monitors with openevents that are about to timeout, ensure refresh in time or proactively close if no reason to keep them open
         # this also ensures clearance of problems that are fixed
         refreshmonitors = {}
         if (time_minute%self.refreshcheck == 0 and not run):
             refreshmonitors = self.getMonitorsWithOpenEvents()
+            logger.info("There are {} synthetic monitors with open certificate problems we need to check/refresh".format(len(refreshmonitors)))
             # check those with open problems if a clearance would be possible (check more frequently than others)
             hosts = self.getSSLCheckHosts(refreshmonitors)
             logger.info("Refreshing open problems for: {}".format([h.url for h in hosts]))
@@ -95,8 +98,42 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         monitors = {}
         if run:
             monitors = self.getSyntheticMonitors()
-            hosts = self.getSSLCheckHosts(monitors)
-            self.getCertExpiry(hosts, False)
+            logger.info("There are {} synthetic monitors to perform SSL certificate checks for".format(len(monitors)))
+
+            pool = ThreadPool(processes = 10)            
+            for m_id,m_name in monitors.items():
+                logger.info("Checking SSL certificate for {} ({})".format(m_id,m_name))
+                #m = {}
+                #m.update({m_id:m_name})
+                pool.apply_async(self.performSSLCheck, args=({m_id:m_name},))
+            pool.close()
+            pool.join()
+            
+            # Max polling time is 50 seconds
+            process_alive = 0
+            while time.time() - self.start < 50:
+                process_alive = 0
+                for process in pool._pool:
+                    if process.is_alive():
+                        process_alive += 1
+                if process_alive == 0:
+                    logger.info('All processes have finished, exiting poll loop')
+                    break
+                time.sleep(1)
+            
+            # If we get to this point, a process was flagged alive and it's been more than 50 seconds, then terminate it
+            # Otherwise, if process_alive was not set above, then no process should be alive at this point and no need to terminate
+            if process_alive > 0:
+                pool.terminate()
+                pool.join()
+                logger.info(str(process_alive) + ' processes are alive. Terminating before finishing polling cycle')
+
+    def performSSLCheck(self,monitors):
+        logger.info("Performing SSL check for {}".format(monitors))
+        hosts = self.getSSLCheckHosts(monitors)
+        logger.info("Checking certificate on host: {}".format(hosts))
+        self.getCertExpiry(hosts, False)
+
 
     # ingest custom metrics to Dynatrace (using etrics API as it provides more flexibility)
     def ingestMetrics(self, data):
@@ -120,14 +157,15 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             logger.info("Getting monitors with open problems: {} {}".format(url,parameters))
             response = requests.get(url, params=parameters, headers=headers, verify=False)
             result = response.json()
-            if response.status_code == requests.codes.ok:
+            if response.ok:
                 if len(result["problems"]) > 0:
                     logger.info("{} open problems for {}".format(len(result["problems"]),entityId))
                     return True
                 else:
                     return False
             else:
-                logger.error("Checking problems for monitor {} failed with status: {}".format(entityId,response.status_code))
+                logger.error("Checking problems for monitor {} failed - Response: {}".format(entityId,response.status_code))
+                logger.error("{}".format(result))
         except Exception as e:
             logger.error("Error while getting open problem status {}: {}".format(url, e))
 
@@ -140,7 +178,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         # so we check the open problem AND the event if no open problem exists we do not refresh the event but let it expire, once it expires a new problem will be opened
 
         apiurl = "/api/v2/events"
-        parameters = {"eventSelector": "eventType(\"ERROR_EVENT\"),status(\"OPEN\"),property.dt.event.title(\"{}\")".format(PROBLEM_TITLE), "from": "now-{}m".format(self.refreshcheck)}
+        parameters = {"eventSelector": "eventType(\"ERROR_EVENT\"),status(\"OPEN\"),property.dt.event.title(\"{}\"),property.dt.event.source(\"{}\")".format(PROBLEM_TITLE,self.source),"from": "now-{}m".format(self.refreshcheck)}
         headers = {"Authorization": "Api-Token {}".format(self.apitoken)}
         url = self.server + apiurl
 
@@ -149,7 +187,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             logger.info("Getting monitors with open events: {} {}".format(url,parameters))
             response = requests.get(url, params=parameters, headers=headers, verify=False)
             result = response.json()
-            if response.status_code == requests.codes.ok:
+            if response.ok:
                 for event in result["events"]:
                     start_TS =  int(event["startTime"])
                     now = datetime.now()
@@ -162,7 +200,8 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                         logger.info("A problem for {} is already open for {} minutes".format(event["entityId"]["name"], diff_min))
                         monitors.update({event["entityId"]["entityId"]["id"]:event["entityId"]["name"]})
             else:
-                logger.error("Getting events returned {}: {}".format(response.status_code,result))
+                logger.error("Getting open events failed - Response: ".format(response.status_code))
+                logger.error("{}".format(result))
         except Exception as e:
             logger.error("Error while getting open events {}: {}".format(url, e))
 
@@ -182,11 +221,12 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         try:
             response = requests.get(url, headers=headers, verify=False)
             result = response.json()
-            if response.status_code == requests.codes.ok:
+            if response.ok:
                 for monitor in result["monitors"]:
                     monitors.update({monitor["entityId"]:monitor["name"]})
             else:
-                logger.error("Getting monitors returned {}: {}".format(response.status_code,result))
+                logger.error("Getting monitors failed - Response: ".format(response.status_code))
+                logger.error("{}".format(result))
         except:
             logger.error("Error while trying to get synthetic monitors from {}".format(url))
 
@@ -206,11 +246,11 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                 m_url = url.replace(':id',m_id)
                 response = session.get(m_url)
                 result = response.json()
-                if response.status_code == requests.codes.ok:
+                if response.ok:
                     # write back the monitor 1:1, this ensures it's entity is active and events can be posted to it
                     # simple, dirty workaround for DT limitation
                     putresp = session.put(m_url, json=result)
-                    logger.info("Touching monitor {} to avoid entity expiration of 24 hours: {}".format(m_id,putresp.status_code))
+                    logger.info("Touching monitor {} to avoid entity expiration of 24 hours - Result: {}".format(m_id,putresp.status_code))
                     if not putresp.ok:
                         logger.info(putresp.json())
 
@@ -394,7 +434,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             logger.info("Trigger on-demand execution of monitor: {} (to ensure Dynatrace considers it active)".format(monitor_id, response.status_code))
 
             # reading on-demand trigger response
-            if response.status_code == requests.codes.ok:
+            if response.ok:
                 result = response.json()
                 if result["triggeringProblemsCount"] == 0:
                     executionId = result["triggered"][0]["executions"][0]["executionId"]
