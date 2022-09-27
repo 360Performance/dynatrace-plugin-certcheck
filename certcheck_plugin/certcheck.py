@@ -178,7 +178,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         # so we check the open problem AND the event if no open problem exists we do not refresh the event but let it expire, once it expires a new problem will be opened
 
         apiurl = "/api/v2/events"
-        parameters = {"eventSelector": "eventType(\"ERROR_EVENT\"),status(\"OPEN\"),property.dt.event.title(\"{}\")".format(PROBLEM_TITLE), "from": "now-{}m".format(self.refreshcheck)}
+        parameters = {"eventSelector": "eventType(\"ERROR_EVENT\"),status(\"OPEN\"),property.dt.event.title(\"{}\"),property.dt.event.source(\"{}\")".format(PROBLEM_TITLE,self.source),"from": "now-{}m".format(self.refreshcheck)}
         headers = {"Authorization": "Api-Token {}".format(self.apitoken)}
         url = self.server + apiurl
 
