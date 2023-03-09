@@ -38,7 +38,7 @@ from socket import socket, AF_INET, SOCK_STREAM
 from collections import namedtuple
 
 HostInfo = namedtuple(field_names='cert hostname peername tlsversion cipher', typename='HostInfo')
-CheckInfo = namedtuple(field_names='url id expire proxy', typename='CheckInfo')
+CheckInfo = namedtuple(field_names='url id name expire proxy', typename='CheckInfo')
 datefmt = "%Y-%m-%d %H:%M:%S"
 SOURCE = "Certificate Checker AG Plugin (by 360performance.net)"
 PROBLEM_TITLE = "SSL Certificate about to expire"
@@ -261,6 +261,8 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                     if result["type"] == "BROWSER":
                         request_key = "events"
 
+                    m_name = result["name"]
+
                     #check for special config tags
                     proxy = f'{self.proxy_addr}:{self.proxy_port}' 
                     expire = None
@@ -276,6 +278,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                             #hosts.update({"{}://{}{}".format(parsed.scheme, parsed.hostname, "" if not parsed.port else ":"+str(parsed.port)) : m_id})
                             hosts.append(CheckInfo(url="{}://{}{}".format(parsed.scheme, parsed.hostname, "" if not parsed.port else ":"+str(parsed.port)), 
                                                    id=m_id,
+                                                   name=m_name,
                                                    expire=expire,
                                                    proxy=proxy
                                                   ))
@@ -401,7 +404,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                     if clear:
                         self.reportCertExpiryEvent(hostinfo, expires, host.id, True)
                 
-                metricdata.append("threesixty-perf.certificates.daystoexpiry,hostname=\"{}\" {:.2f}".format(parsed.hostname,expires))
+                metricdata.append("threesixty-perf.certificates.daystoexpiry,hostname=\"{}\",monitorname=\"{}\" {:.2f}".format(parsed.hostname,host.name,expires))
 
                 # report a problem if the TLS version used by the checked host is considerd insecure
                 if hostinfo.tlsversion[0] < SSL.TLS1_2_VERSION:
