@@ -37,11 +37,12 @@ import idna
 from socket import socket, AF_INET, SOCK_STREAM
 from collections import namedtuple
 
-HostInfo = namedtuple(field_names='cert hostname peername', typename='HostInfo')
+HostInfo = namedtuple(field_names='cert hostname peername tlsversion cipher', typename='HostInfo')
 CheckInfo = namedtuple(field_names='url id expire proxy', typename='CheckInfo')
 datefmt = "%Y-%m-%d %H:%M:%S"
 SOURCE = "Certificate Checker AG Plugin (by 360performance.net)"
 PROBLEM_TITLE = "SSL Certificate about to expire"
+INFO_TITLE = "TLS Version outdated"
 TAG_PROXY="SSLCheckProxy"
 TAG_EXPIRE="SSLCheckExpire"
 
@@ -248,7 +249,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                 result = response.json()
                 if response.ok:
                     # write back the monitor 1:1, this ensures it's entity is active and events can be posted to it
-                    # simple, dirty workaround for DT limitation
+                    # simple, dirty workaround for DT limitation and without having to trigger the ondemandexecution (consumes DEM)
                     putresp = session.put(m_url, json=result)
                     logger.info("Touching monitor {} to avoid entity expiration of 24 hours - Result: {}".format(m_id,putresp.status_code))
                     if not putresp.ok:
@@ -261,11 +262,12 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                         request_key = "events"
 
                     #check for special config tags
-                    proxy = expire = None
+                    proxy = f'{self.proxy_addr}:{self.proxy_port}' 
+                    expire = None
                     for tag in result["tags"]:
                         if tag["key"] == TAG_PROXY:
-                            proxy = tag["value"]
-                        if tag["key"] == TAG_EXPIRE:
+                            proxy = tag["value"] if "value" in tag else None
+                        if tag["key"] == TAG_EXPIRE and "value" in tag:
                             expire = tag["value"]
                     
                     for req in m_requests[request_key]:
@@ -287,10 +289,10 @@ class CertificateCheckPlugin(RemoteBasePlugin):
 
     def get_certificate(self, hostname, port, proxy):
         connect_addr = (hostname, port)
-        connect = ""
-        if self.proxy_addr:
-            connect_addr = (self.proxy_addr, self.proxy_port)
-            connect = "CONNECT {}:{} HTTP/1.0\r\nConnection: close\r\n\r\n".format(hostname, port)
+        connect = None
+        #if self.proxy_addr:
+        #    connect_addr = (self.proxy_addr, self.proxy_port)
+        #    connect = "CONNECT {}:{} HTTP/1.0\r\nConnection: close\r\n\r\n".format(hostname, port)
         if proxy:
             parsed = urlparse("//"+proxy)
             connect_addr = (parsed.hostname, parsed.port)
@@ -306,25 +308,18 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                 sock.send(connect.encode('utf-8'))
                 data = sock.recv(4096)
                 if "200" not in str(data):
-                    raise Exception("Proxy CONNECT to {} via proxy {} failed: {}".format(hostname, self.proxy, str(data)))
+                    raise Exception("Proxy CONNECT to {} via proxy {} failed: {}".format(hostname, connect_addr, str(data)))
 
             peername = sock.getpeername()
         except Exception as e:
             logger.error("Failed to connect to {}:{} {} - {}".format(hostname, port, "via proxy: {}".format(connect_addr) if connect else "", e))
             return None
 
-        ctx = SSL.Context(SSL.TLSv1_2_METHOD)
-        '''
-        SSL.SSLv2_METHOD
-        SSL.SSLv3_METHOD
-        SSL.SSLv23_METHOD
-        SSL.TLSv1_METHOD
-        SSL.TLSv1_1_METHOD
-        SSL.TLSv1_2_METHOD
-        '''
+        ctx = SSL.Context(SSL.TLS_CLIENT_METHOD)
         ctx.check_hostname = False
         ctx.verify_mode = SSL.VERIFY_NONE
-        ctx.set_options(SSL.OP_NO_TLSv1_3)
+        ctx.set_options(0x4)
+        #ctx.set_options(SSL.OP_NO_TLSv1_3)
 
         sock.setblocking(1)
         sock_ssl = SSL.Connection(ctx, sock)
@@ -337,11 +332,18 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             return None
 
         cert = sock_ssl.get_peer_certificate()
+        protocol = sock_ssl.get_protocol_version()
+        protocol_name = sock_ssl.get_protocol_version_name()
+        cipher_version = sock_ssl.get_cipher_version()
+        cipher_name = sock_ssl.get_cipher_name()
+
+        logger.info(f"TLS connection to {hostname} with version: {protocol_name}, cipher: {cipher_name}:{cipher_version}")
+
         crypto_cert = cert.to_cryptography()
         sock_ssl.close()
         sock.close()
 
-        return HostInfo(cert=crypto_cert, peername=peername, hostname=hostname)
+        return HostInfo(cert=crypto_cert, peername=peername, hostname=hostname, tlsversion=(protocol,protocol_name), cipher=(cipher_version,cipher_name))
 
     def get_alt_names(self, cert):
         try:
@@ -401,10 +403,16 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                 
                 metricdata.append("threesixty-perf.certificates.daystoexpiry,hostname=\"{}\" {:.2f}".format(parsed.hostname,expires))
 
+                # report a problem if the TLS version used by the checked host is considerd insecure
+                if hostinfo.tlsversion[0] < SSL.TLS1_2_VERSION:
+                    self.reportTLSVersionWarning(hostinfo, host.id)
+
                 # also perform a hostname check against the certificate
                 # not performing this on the SSL connection level to allow the use of self-signed certificates without the need to import the CA to the active gate
                 if not self.validateHostname(parsed.hostname, hostinfo.cert):
                     self.reportHostnameMismatchEvent(hostinfo, host.id)
+            else:       # SSL Connection failed for other reason
+                self.reportTLSVersionWarning(Hostinfo(cert=None, peername=None, hostname=parsed.hostname, tlsversion=("unknown","unknown"), cipher=("unknown","unknown")), host.id)
 
         
         #optionally report days left to expire as metric        
@@ -446,6 +454,30 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             logger.error("There was a problem triggering on-demand execution".format(traceback.format_exc()))
 
 
+    def reportTLSVersionWarning(self, hostinfo, monitor_id):
+        event = {
+                    "eventType": "CUSTOM_INFO",
+                    "timeout": self.problemtimeout,
+                    "title": f'{INFO_TITLE}',
+                    "entitySelector": f'entityId({monitor_id})', 
+                    "properties": {
+                        "dt.event.description": f'The protocol version ({hostinfo.tlsversion[1]}) for {hostinfo.hostname} is considered insecure',
+                        "dt.event.source": self.source,
+                        "dt.event.allow_davis_merge": False
+                    },
+                }
+        
+        apiurl = "/api/v2/events/ingest"
+        headers = {"Content-type": "application/json", "Authorization": f'Api-Token {self.apitoken}'}
+        url = self.server + apiurl
+
+        data = json.dumps(event)
+        try:
+            response = requests.post(url, json=event, headers=headers, verify=False)
+            logger.info("Adding protocol version info event to monitor: {} - Response: {}".format(response.status_code))
+        except:
+            logger.error("There was a problem posting info event to Dynatrace: ".format(traceback.format_exc()))
+
 
     def reportHostnameMismatchEvent(self, hostinfo, monitor_id):
         pass
@@ -466,10 +498,10 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         event = {
                     "eventType": "ERROR_EVENT",
                     "timeout": timeout,
-                    "title": "{}".format(PROBLEM_TITLE),
-                    "entitySelector": "entityId({})".format(monitor_id), 
+                    "title": f'{PROBLEM_TITLE}',
+                    "entitySelector": f'entityId({monitor_id})', 
                     "properties": {
-                        "dt.event.description": "The SSL certificate for {} will expire in {} days!".format(hostinfo.hostname, expires),
+                        "dt.event.description": f'The SSL certificate for {hostinfo.hostname} will expire in {expires} days!',
                         "dt.event.source": self.source,
                         "dt.event.allow_davis_merge": False,
                         "Common Name": self.get_common_name(hostinfo.cert),
@@ -477,12 +509,14 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                         "Not Before": notbefore.strftime(datefmt),
                         "Not After": notafter.strftime(datefmt),
                         "Alternative Names": ", ".join(self.get_alt_names(hostinfo.cert)),
-                        "Hostname verified": "Yes" if validHostname else "No"
+                        "Hostname verified": "Yes" if validHostname else "No",
+                        "TLS Version": hostinfo.tlsversion[1],
+                        "Cipher": f'{hostinfo.cipher[1]} : {hostinfo.cipher[0]}'
                     },
                 }
         
         apiurl = "/api/v2/events/ingest"
-        headers = {"Content-type": "application/json", "Authorization": "Api-Token {}".format(self.apitoken)}
+        headers = {"Content-type": "application/json", "Authorization": f'Api-Token {self.apitoken}'}
         url = self.server + apiurl
 
         data = json.dumps(event)
