@@ -264,7 +264,11 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                     m_name = result["name"]
 
                     #check for special config tags
-                    proxy = f'{self.proxy_addr}:{self.proxy_port}' 
+                    proxy = None 
+                    if self.proxy_addr and self.proxy_port > 0:
+                        proxy = f'{self.proxy_addr}:{self.proxy_port}'
+                        
+                     
                     expire = None
                     for tag in result["tags"]:
                         if tag["key"] == TAG_PROXY:
