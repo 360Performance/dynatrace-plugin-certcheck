@@ -63,7 +63,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         self.server = "https://localhost:9999/e/"+self.tenant   # this is an active gate plugin so it can call the DT API on localhost
         self.proxy_addr = self.config["proxy_addr"]
         self.proxy_port = self.config["proxy_port"]
-        self.problemtimeout = 10
+        self.problemtimeout = 30
         self.refreshcheck = 5
         self.source = "{} (Endpoint config: {})".format(SOURCE,self.activation.endpoint_name)
         self.start = time.time()
