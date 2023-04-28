@@ -37,8 +37,8 @@ import idna
 from socket import socket, AF_INET, SOCK_STREAM
 from collections import namedtuple
 
-HostInfo = namedtuple(field_names='cert hostname peername tlsversion cipher', typename='HostInfo')
-CheckInfo = namedtuple(field_names='url id expire proxy', typename='CheckInfo')
+HostInfo = namedtuple(field_names='cert hostname peername tlsversion cipher tlsversion cipher', typename='HostInfo')
+CheckInfo = namedtuple(field_names='url id name expire proxy', typename='CheckInfo')
 datefmt = "%Y-%m-%d %H:%M:%S"
 SOURCE = "Certificate Checker AG Plugin (by 360performance.net)"
 PROBLEM_TITLE = "SSL Certificate about to expire"
@@ -249,7 +249,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                 result = response.json()
                 if response.ok:
                     # write back the monitor 1:1, this ensures it's entity is active and events can be posted to it
-                    # simple, dirty workaround for DT limitation and without having to trigger the ondemandexecution (consumes DEM)
+                    # simple, dirty workaround for DT limitation and without having to trigger the ondemandexecution (consumes DEM) and without having to trigger the ondemandexecution (consumes DEM)
                     putresp = session.put(m_url, json=result)
                     logger.info("Touching monitor {} to avoid entity expiration of 24 hours - Result: {}".format(m_id,putresp.status_code))
                     if not putresp.ok:
@@ -261,8 +261,13 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                     if result["type"] == "BROWSER":
                         request_key = "events"
 
+                    m_name = result["name"]
+
                     #check for special config tags
-                    proxy = f'{self.proxy_addr}:{self.proxy_port}' 
+                    proxy = None 
+                    if self.proxy_addr and self.proxy_port > 0:
+                        proxy = f'{self.proxy_addr}:{self.proxy_port}'
+                        
                     expire = None
                     for tag in result["tags"]:
                         if tag["key"] == TAG_PROXY:
@@ -276,6 +281,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                             #hosts.update({"{}://{}{}".format(parsed.scheme, parsed.hostname, "" if not parsed.port else ":"+str(parsed.port)) : m_id})
                             hosts.append(CheckInfo(url="{}://{}{}".format(parsed.scheme, parsed.hostname, "" if not parsed.port else ":"+str(parsed.port)), 
                                                    id=m_id,
+                                                   name=m_name,
                                                    expire=expire,
                                                    proxy=proxy
                                                   ))
@@ -401,12 +407,12 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                     if clear:
                         self.reportCertExpiryEvent(hostinfo, expires, host.id, True)
                 
-                metricdata.append("threesixty-perf.certificates.daystoexpiry,hostname=\"{}\" {:.2f}".format(parsed.hostname,expires))
+                metricdata.append("threesixty-perf.certificates.daystoexpiry,hostname=\"{}\",monitorname=\"{}\" {:.2f}".format(parsed.hostname,host.name,expires))
 
                 # report a problem if the TLS version used by the checked host is considerd insecure
                 if hostinfo.tlsversion[0] < SSL.TLS1_2_VERSION:
                     self.reportTLSVersionWarning(hostinfo, host.id)
-
+                    
                 # also perform a hostname check against the certificate
                 # not performing this on the SSL connection level to allow the use of self-signed certificates without the need to import the CA to the active gate
                 if not self.validateHostname(parsed.hostname, hostinfo.cert):
