@@ -37,7 +37,7 @@ import idna
 from socket import socket, AF_INET, SOCK_STREAM
 from collections import namedtuple
 
-HostInfo = namedtuple(field_names='cert hostname peername tlsversion cipher tlsversion cipher', typename='HostInfo')
+HostInfo = namedtuple(field_names='cert hostname peername tlsversion cipher', typename='HostInfo')
 CheckInfo = namedtuple(field_names='url id name expire proxy', typename='CheckInfo')
 datefmt = "%Y-%m-%d %H:%M:%S"
 SOURCE = "Certificate Checker AG Plugin (by 360performance.net)"
