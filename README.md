@@ -1,3 +1,8 @@
+## First things first :-)
+I'm developing this plugin in my spare time. If you like this Dynatrace Active Gate Plugin or if it saves you some time and effort. I'm happy to receive a small donation.
+
+[![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=RUZP3LCKH56CU)
+
 # A Dynatrace Plugin to Monitor SSL Certificates
 This active gate remote plugin enhances Dynatrace synthetic monitoring capabilities by checking the expiry date of SSL certificates.
 It overcomes the limitation by executing checks against the endpoints that are already configured in Dynatrace's synthetic tests and will post any problems to these synthetic test entities.
@@ -44,8 +49,3 @@ To add more configuration flexibility it is possible to pass per-site settings t
 - Key: "SSLCheckExpire" Value: "number" - days to warn before certificate expiration>
 - Key: "SSLCheckProxy" Value: "hostname:port" - proxy and port to use for establishing SSL connection
 
-
-## Donations
-I'm developing this plugin in my spare time. If you like this Dynatrace Active Gate Plugin or if it saves you some time and effort. I'm happy to receive a small donation.
-
-[![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=RUZP3LCKH56CU)

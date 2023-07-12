@@ -63,7 +63,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         self.server = "https://localhost:9999/e/"+self.tenant   # this is an active gate plugin so it can call the DT API on localhost
         self.proxy_addr = self.config["proxy_addr"]
         self.proxy_port = self.config["proxy_port"]
-        self.problemtimeout = 10
+        self.problemtimeout = 30
         self.refreshcheck = 5
         self.source = "{} (Endpoint config: {})".format(SOURCE,self.activation.endpoint_name)
         self.start = time.time()
@@ -249,7 +249,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                 result = response.json()
                 if response.ok:
                     # write back the monitor 1:1, this ensures it's entity is active and events can be posted to it
-                    # simple, dirty workaround for DT limitation and without having to trigger the ondemandexecution (consumes DEM)
+                    # simple, dirty workaround for DT limitation and without having to trigger the ondemandexecution (consumes DEM) and without having to trigger the ondemandexecution (consumes DEM)
                     putresp = session.put(m_url, json=result)
                     logger.info("Touching monitor {} to avoid entity expiration of 24 hours - Result: {}".format(m_id,putresp.status_code))
                     if not putresp.ok:
@@ -268,7 +268,6 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                     if self.proxy_addr and self.proxy_port > 0:
                         proxy = f'{self.proxy_addr}:{self.proxy_port}'
                         
-                     
                     expire = None
                     for tag in result["tags"]:
                         if tag["key"] == TAG_PROXY:
@@ -413,7 +412,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                 # report a problem if the TLS version used by the checked host is considerd insecure
                 if hostinfo.tlsversion[0] < SSL.TLS1_2_VERSION:
                     self.reportTLSVersionWarning(hostinfo, host.id)
-
+                    
                 # also perform a hostname check against the certificate
                 # not performing this on the SSL connection level to allow the use of self-signed certificates without the need to import the CA to the active gate
                 if not self.validateHostname(parsed.hostname, hostinfo.cert):
