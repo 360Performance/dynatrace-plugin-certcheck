@@ -1,0 +1,16 @@
+Metadata-Version: 2.1
+Name: certcheck
+Version: 1.53
+Summary: UNKNOWN
+Home-page: UNKNOWN
+Author: UNKNOWN
+Author-email: UNKNOWN
+License: UNKNOWN
+Platform: UNKNOWN
+Requires-Dist: pyopenssl
+Requires-Dist: cffi
+Requires-Dist: pycparser
+
+UNKNOWN
+
+

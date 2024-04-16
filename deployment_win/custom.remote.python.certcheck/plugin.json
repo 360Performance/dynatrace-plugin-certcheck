@@ -1,0 +1,134 @@
+{
+    "name": "custom.remote.python.certcheck",
+    "metricGroup": "tech.ssl",
+    "version": "1.53",
+    "experimentalMinVersion": "0.99",
+    "productiveMinVersion": "1.0",
+    "type": "python",
+    "entity": "CUSTOM_DEVICE",
+    "technologies": [
+        "OpenSSL"
+    ],
+    "source": {
+        "package": "certcheck",
+        "className": "CertificateCheckPlugin",
+        "install_requires": [
+            "pyopenssl", "cffi", "pycparser"
+        ],
+        "activation": "Remote"
+    },
+    "metrics": [],
+    "properties": [
+        {
+            "key": "minduration",
+            "type": "Integer",
+            "defaultValue": 30
+        },
+        {
+            "key": "tag",
+            "type": "String"
+        },
+        {
+            "key": "consider_disabled",
+            "type": "Boolean"
+        },
+        {
+            "key": "reportmetric",
+            "type": "Boolean"
+        },
+        {
+            "key": "tenantUUID",
+            "type": "String"
+        },
+        {
+            "key": "apitoken",
+            "type": "Password"
+        },
+        {
+            "key": "interval",
+            "type": "Dropdown",
+            "defaultValue": "15 minutes",
+            "dropdownValues": ["5 minutes","15 minutes", "30 minutes", "1 hours","2 hours","6 hours","12 hours","24 hours"]
+        },
+        {
+            "key": "proxy_addr",
+            "type": "String"
+        },
+        {
+            "key": "proxy_port",
+            "type": "Integer"
+        },
+        {
+            "key": "internal_ca",
+            "type": "String"
+        }
+    ],
+    "configUI": {
+        "displayName": "Certificate Validation Check",
+        "properties": [
+            {
+                "key": "minduration",
+                "displayName": "Minimum Certificate Validity in Days",
+                "displayHint": "days",
+                "displayOrder": 1
+            },
+            {
+                "key": "interval",
+                "displayName": "Time interval for checks",
+                "displayHint": "every X minutes/hours",
+                "displayOrder": 2
+            },
+            {
+                "key": "tag",
+                "displayName": "Select synthetic monitors by tag",
+                "displayHint": "mytag",
+                "displayOrder": 3
+            },
+            {
+                "key": "consider_disabled",
+                "displayName": "Consider disabled monitors in checks",
+                "displayOrder": 4
+            },
+            {
+                "key": "reportmetric",
+                "displayName": "Report certificate expiry days as metrics",
+                "displayOrder": 5
+            },
+            {
+                "key": "tenantUUID",
+                "displayName": "Dynatrace Tenant UUID to report to",
+                "displayHint": "mytenant",
+                "displayOrder": 6
+            },
+            {
+                "key": "apitoken",
+                "displayName": "Dynatrace API token",
+                "displayHint": "auth-token",
+                "displayOrder": 7
+            },
+            {
+                "key": "proxy_addr",
+                "displayName": "Address of the proxy to connect via (optional)",
+                "displayHint": "my.proxy.local",
+                "displayOrder": 8
+            },
+            {
+                "key": "proxy_port",
+                "displayName": "Port of the proxy server (optional)",
+                "displayHint": "3128",
+                "displayOrder": 9
+            },
+            {
+                "key": "internal_ca",
+                "displayName": "Name of the internal CA (or parts of it), if this string is found in a certs CA it is considered internal",
+                "displayHint": "My CA Name",
+                "displayOrder": 10
+            }
+        ]
+    },
+    "ui": {
+        "keymetrics": [],
+        "keycharts":[],
+        "charts": []
+    }
+}
