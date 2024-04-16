@@ -1,7 +1,7 @@
 {
     "name": "custom.remote.python.certcheck",
     "metricGroup": "tech.ssl",
-    "version": "1.52",
+    "version": "1.53",
     "experimentalMinVersion": "0.99",
     "productiveMinVersion": "1.0",
     "type": "python",
@@ -57,6 +57,10 @@
         {
             "key": "proxy_port",
             "type": "Integer"
+        },
+        {
+            "key": "internal_ca",
+            "type": "String"
         }
     ],
     "configUI": {
@@ -113,7 +117,13 @@
                 "displayName": "Port of the proxy server (optional)",
                 "displayHint": "3128",
                 "displayOrder": 9
-            }
+            },
+            {
+                "key": "internal_ca",
+                "displayName": "Name of the internal CA (or parts of it), if this string is found in a certs CA it is considered internal",
+                "displayHint": "My CA Name",
+                "displayOrder": 10
+            },
         ]
     },
     "ui": {

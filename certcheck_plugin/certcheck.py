@@ -63,6 +63,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         self.server = "https://localhost:9999/e/"+self.tenant   # this is an active gate plugin so it can call the DT API on localhost
         self.proxy_addr = self.config["proxy_addr"]
         self.proxy_port = self.config["proxy_port"]
+        self.internal_ca = self.config["internal_ca"]
         self.problemtimeout = 30
         self.refreshcheck = 5
         self.source = "{} (Endpoint config: {})".format(SOURCE,self.activation.endpoint_name)
@@ -407,6 +408,9 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                     if clear:
                         self.reportCertExpiryEvent(hostinfo, expires, host.id, True)
                 
+                # assign tag to monitor with CA info
+                self.addCATagToMonitor(hostinfo, host.id)
+                
                 metricdata.append("threesixty-perf.certificates.daystoexpiry,hostname=\"{}\",monitorname=\"{}\" {:.2f}".format(parsed.hostname,host.name,expires))
 
                 # report a problem if the TLS version used by the checked host is considerd insecure
@@ -487,6 +491,29 @@ class CertificateCheckPlugin(RemoteBasePlugin):
 
     def reportHostnameMismatchEvent(self, hostinfo, monitor_id):
         pass
+
+    # tags a monitor with CA information, so that it is distinguishable if the cert is maintained internally/externally
+    def addCATagToMonitor(self, hostinfo):
+        ca = self.get_common_name(hostinfo.cert)
+        cert_type = "internal" if ca.contains(self.internal_ca) else "external"
+        tags = { 
+                    "tags": [
+                        {
+                            "certType": f'{cert_type}'
+                        }
+                    ]
+                }
+        
+        apiurl = "/api/v2/tags"
+        query = 
+        headers = {"Content-type": "application/json", "Authorization": f'Api-Token {self.apitoken}'}
+        url = self.server + apiurl
+
+        try:
+            response = requests.post(url, json=tags, headers=headers, verify=False)
+            logger.info("Tagging monitor for {} with certType: {} - Response: {}".format(hostinfo.hostname, cert_type, response.status_code))
+        except:
+            logger.error("There was a problem tagging the monitor with CA info: ".format(traceback.format_exc()))
 
     def reportCertExpiryEvent(self, hostinfo, expires, monitor_id, clear):
 
