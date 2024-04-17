@@ -505,7 +505,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                 }
         
         apiurl = "/api/v2/tags"
-        query = 
+        #query = 
         headers = {"Content-type": "application/json", "Authorization": f'Api-Token {self.apitoken}'}
         url = self.server + apiurl
 
