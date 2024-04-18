@@ -493,7 +493,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         pass
 
     # tags a monitor with CA information, so that it is distinguishable if the cert is maintained internally/externally
-    def addCATagToMonitor(self, hostinfo):
+    def addCATagToMonitor(self, hostinfo, monitor_id):
         ca = self.get_common_name(hostinfo.cert)
         cert_type = "internal" if ca.contains(self.internal_ca) else "external"
         tags = { 
@@ -505,12 +505,12 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                 }
         
         apiurl = "/api/v2/tags"
-        #query = 
+        query = {"entitySelector": f'entityId({monitor_id})'}
         headers = {"Content-type": "application/json", "Authorization": f'Api-Token {self.apitoken}'}
         url = self.server + apiurl
 
         try:
-            response = requests.post(url, json=tags, headers=headers, verify=False)
+            response = requests.post(url, json=tags, headers=headers, params=query, verify=False)
             logger.info("Tagging monitor for {} with certType: {} - Response: {}".format(hostinfo.hostname, cert_type, response.status_code))
         except:
             logger.error("There was a problem tagging the monitor with CA info: ".format(traceback.format_exc()))
