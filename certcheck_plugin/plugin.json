@@ -123,7 +123,7 @@
                 "displayName": "Name of the internal CA (or parts of it), if this string is found in a certs CA it is considered internal",
                 "displayHint": "My CA Name",
                 "displayOrder": 10
-            },
+            }
         ]
     },
     "ui": {
