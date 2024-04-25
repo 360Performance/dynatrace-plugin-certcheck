@@ -495,7 +495,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
     # tags a monitor with CA information, so that it is distinguishable if the cert is maintained internally/externally
     def addCATagToMonitor(self, hostinfo, monitor_id):
         ca = self.get_common_name(hostinfo.cert)
-        cert_type = "internal" if ca.contains(self.internal_ca) else "external"
+        cert_type = "internal" if self.internal_ca in ca else "external"
         tags = { 
                     "tags": [
                         {
