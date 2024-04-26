@@ -510,6 +510,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         url = self.server + apiurl
 
         try:
+            logger.debug(f"tag url: {url}")
             response = requests.post(url, json=tags, headers=headers, verify=False)
             logger.info("Tagging monitor for {} with certType: {} - Response: {}".format(hostinfo.hostname, cert_type, response.text))
         except:
