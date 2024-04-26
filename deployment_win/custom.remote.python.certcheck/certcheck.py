@@ -499,7 +499,8 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         tags = { 
                     "tags": [
                         {
-                            "certType": f'{cert_type}'
+                            "key": "certType",
+                            "value": f'{cert_type}'
                         }
                     ]
                 }
