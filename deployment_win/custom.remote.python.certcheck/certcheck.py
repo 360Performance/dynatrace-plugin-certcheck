@@ -505,13 +505,12 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                     ]
                 }
         
-        apiurl = "/api/v2/tags"
-        query = {"entitySelector": f'entityId({monitor_id})'}
+        apiurl = f"/api/v2/tags?entitySelector=entityId({monitor_id})"
         headers = {"Content-type": "application/json", "Authorization": f'Api-Token {self.apitoken}'}
         url = self.server + apiurl
 
         try:
-            response = requests.post(url, json=tags, headers=headers, params=query, verify=False)
+            response = requests.post(url, json=tags, headers=headers, verify=False)
             logger.info("Tagging monitor for {} with certType: {} - Response: {}".format(hostinfo.hostname, cert_type, response.text))
         except:
             logger.error("There was a problem tagging the monitor with CA info: ".format(traceback.format_exc()))
