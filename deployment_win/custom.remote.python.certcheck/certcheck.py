@@ -511,7 +511,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
 
         try:
             response = requests.post(url, json=tags, headers=headers, params=query, verify=False)
-            logger.info("Tagging monitor for {} with certType: {} - Response: {}".format(hostinfo.hostname, cert_type, response.status_code))
+            logger.info("Tagging monitor for {} with certType: {} - Response: {}".format(hostinfo.hostname, cert_type, response.text))
         except:
             logger.error("There was a problem tagging the monitor with CA info: ".format(traceback.format_exc()))
 
