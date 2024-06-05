@@ -1,7 +1,7 @@
 {
     "name": "custom.remote.python.certcheck",
     "metricGroup": "tech.ssl",
-    "version": "1.60",
+    "version": "1.61",
     "experimentalMinVersion": "0.99",
     "productiveMinVersion": "1.0",
     "type": "python",
@@ -61,7 +61,16 @@
         {
             "key": "internal_ca",
             "type": "String"
-        }
+        },
+        {
+            "key": "log_level",
+            "type": "Dropdown",
+            "dropdownValues": [
+              "INFO",
+              "DEBUG"
+            ],
+            "defaultValue": "INFO"
+          }
     ],
     "configUI": {
         "displayName": "Certificate Validation Check",
@@ -123,7 +132,13 @@
                 "displayName": "Name of the internal CA (or parts of it), if this string is found in a certs CA it is considered internal",
                 "displayHint": "My CA Name",
                 "displayOrder": 10
+            },
+            {
+                "key": "log_level",
+                "displayName": "Log level",
+                "displayOrder": 11
             }
+        
         ]
     },
     "ui": {

@@ -68,6 +68,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         self.refreshcheck = 5
         self.source = "{} (Endpoint config: {})".format(SOURCE,self.activation.endpoint_name)
         self.start = time.time()
+        logger.setLevel(self.config.get("log_level"))
 
 
     def query(self, **kwargs):
