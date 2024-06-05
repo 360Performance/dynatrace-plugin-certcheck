@@ -107,13 +107,16 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                 logger.info("Checking SSL certificate for {} ({})".format(m_id,m_name))
                 #m = {}
                 #m.update({m_id:m_name})
+                logger.debug("In line 110: starting async ssl checks.")
                 pool.apply_async(self.performSSLCheck, args=({m_id:m_name},))
+                logger.debug("In line 112: end of async ssl checks.")
             pool.close()
             pool.join()
             
             # Max polling time is 50 seconds
             process_alive = 0
             while time.time() - self.start < 50:
+                logger.debug("In line 119: checking for alive threads at 50s.")
                 process_alive = 0
                 for process in pool._pool:
                     if process.is_alive():
@@ -126,6 +129,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             # If we get to this point, a process was flagged alive and it's been more than 50 seconds, then terminate it
             # Otherwise, if process_alive was not set above, then no process should be alive at this point and no need to terminate
             if process_alive > 0:
+                logger.debug("In line 132: before terminating threads.")
                 pool.terminate()
                 pool.join()
                 logger.info(str(process_alive) + ' processes are alive. Terminating before finishing polling cycle')
@@ -243,6 +247,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         session = requests.session()
         session.verify = False
         session.headers = headers
+        logger.debug("In line 250: getting SSLCheckHosts.")
         for m_id,m_timeout in monitors.items():
             try:
                 m_url = url.replace(':id',m_id)
@@ -307,6 +312,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
 
         hostname_idna = idna.encode(hostname)
         sock = socket(AF_INET, SOCK_STREAM)
+        logger.debug("In line 315: getting certificate for {hostname}.")
 
         try:
             sock.settimeout(3.0)
@@ -332,6 +338,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         sock_ssl = SSL.Connection(ctx, sock)
         sock_ssl.set_connect_state()
         sock_ssl.set_tlsext_host_name(hostname_idna)
+        logger.debug("In line 341: starting ssl handshake.")
         try:
             sock_ssl.do_handshake()
         except Exception as e:
@@ -392,6 +399,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
     def getCertExpiry(self, hosts, clear):
         metricdata = []
         for host in hosts:
+            logger.debug("In line 402: getCertExpiry.")
             parsed = urlparse(host.url)
             hostinfo = self.get_certificate(parsed.hostname, int(parsed.port) if parsed.port else 443, host.proxy)
 
@@ -430,6 +438,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             self.ingestMetrics(metricdata)
     
     def triggerOnDemandExecution(self,monitor_id):
+        logger.debug("In line 441: trigger on demand execution.")
         execution = {
                         "processingMode": "DISABLE_PROBLEM_DETECTION",
                         "failOnPerformanceIssue": "false",
