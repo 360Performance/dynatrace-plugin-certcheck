@@ -1,7 +1,7 @@
 {
     "name": "custom.remote.python.certcheck",
     "metricGroup": "tech.ssl",
-    "version": "1.61",
+    "version": "1.65",
     "experimentalMinVersion": "0.99",
     "productiveMinVersion": "1.0",
     "type": "python",
@@ -70,7 +70,12 @@
               "DEBUG"
             ],
             "defaultValue": "INFO"
-          }
+          },
+          {
+              "key": "socket_timeout",
+              "type": "Integer",
+              "defaultValue": 3
+            }
     ],
     "configUI": {
         "displayName": "Certificate Validation Check",
@@ -137,6 +142,11 @@
                 "key": "log_level",
                 "displayName": "Log level",
                 "displayOrder": 11
+            },
+            {
+                "key": "socket_timeout",
+                "displayName": "Socket Timeout",
+                "displayOrder": 12
             }
         
         ]

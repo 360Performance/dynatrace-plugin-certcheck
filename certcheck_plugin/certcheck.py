@@ -69,13 +69,14 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         self.source = "{} (Endpoint config: {})".format(SOURCE,self.activation.endpoint_name)
         self.start = time.time()
         logger.setLevel(self.config.get("log_level"))
+        self.sockettimeout = float(self.config["socket_timeout"])
 
 
     def query(self, **kwargs):
         config = kwargs['config']
         group_name = "SSL Certificate Hosts"
         group = self.topology_builder.create_group(group_name, group_name)
-
+        logger.debug("Starting new query.")
         # determine if we should run the checks based on selected interval
         time_minute = datetime.now().minute
         time_hour = datetime.now().hour
@@ -100,6 +101,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         # regular run with all monitors at defined interval
         monitors = {}
         if run:
+            logger.debug("In line 104: run")
             monitors = self.getSyntheticMonitors()
             logger.info("There are {} synthetic monitors to perform SSL certificate checks for".format(len(monitors)))
 
@@ -110,9 +112,9 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                 #m.update({m_id:m_name})
                 logger.debug("In line 110: starting async ssl checks.")
                 pool.apply_async(self.performSSLCheck, args=({m_id:m_name},))
-                logger.debug("In line 112: end of async ssl checks.")
             pool.close()
             pool.join()
+            logger.debug("In line 117: end of async ssl checks.")
             
             # Max polling time is 50 seconds
             process_alive = 0
@@ -175,6 +177,27 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                 logger.error("{}".format(result))
         except Exception as e:
             logger.error("Error while getting open problem status {}: {}".format(url, e))
+
+
+    def getEventForMonitor(self, monitor_id):
+        #in case of timeout of get_certificate we need to fetch an existing event and extend it's runtime
+        apiurl = "/api/v2/events"
+        parameters = {"eventSelector": "eventType(\"ERROR_EVENT\"),status(\"OPEN\"),property.dt.event.title(\"{}\"),property.dt.event.source(\"{}\",entityId(\"{}\")".format(PROBLEM_TITLE,self.source,monitor_id),"from": "now-{}m".format(self.refreshcheck)}
+        headers = {"Authorization": "Api-Token {}".format(self.apitoken)}
+        url = self.server + apiurl
+        try:
+            logger.debug("Getting event for monitor: {} {}".format(url,parameters))
+            response = requests.get(url, params=parameters, headers=headers, verify=False)
+            result = response.json()
+            logger.debug(f"Event found: {result}")
+            if response.ok:
+                if len(result["events"]) != 1:
+                    logger.debug(f"Error while getting event for monitor {monitor_id}!")
+                else:
+                    return result["events"][0]
+        except Exception as e:
+            logger.error("Error while getting event for monitor {}: {}".format(url, e))
+        return None
 
 
 
@@ -313,10 +336,10 @@ class CertificateCheckPlugin(RemoteBasePlugin):
 
         hostname_idna = idna.encode(hostname)
         sock = socket(AF_INET, SOCK_STREAM)
-        logger.debug("In line 315: getting certificate for {hostname}.")
+        logger.debug(f"In line 315: getting certificate for {hostname}.")
 
         try:
-            sock.settimeout(3.0)
+            sock.settimeout(self.sockettimeout)
             sock.connect(connect_addr)
             if connect:             #proxied SSL connection
                 sock.send(connect.encode('utf-8'))
@@ -403,8 +426,9 @@ class CertificateCheckPlugin(RemoteBasePlugin):
             logger.debug("In line 402: getCertExpiry.")
             parsed = urlparse(host.url)
             hostinfo = self.get_certificate(parsed.hostname, int(parsed.port) if parsed.port else 443, host.proxy)
-
+            logger.debug("In line 429: after get_certificate")
             if hostinfo is not None:
+                logger.debug(f"In line 431: hostinfo is: {hostinfo}")
                 notafter=hostinfo.cert.not_valid_after
                 now = datetime.now()
                 expires = (notafter - now).days
@@ -431,7 +455,20 @@ class CertificateCheckPlugin(RemoteBasePlugin):
                 if not self.validateHostname(parsed.hostname, hostinfo.cert):
                     self.reportHostnameMismatchEvent(hostinfo, host.id)
             else:       # SSL Connection failed for other reason
-                self.reportTLSVersionWarning(Hostinfo(cert=None, peername=None, hostname=parsed.hostname, tlsversion=("unknown","unknown"), cipher=("unknown","unknown")), host.id)
+                logger.debug(f"In line 458: hostinfo is: {hostinfo}")
+                # if timeout in get_certificate we still extend the event to avoid re-opening of problems 
+                event = self.getEventForMonitor(host)
+                event["timeout"] = self.problemtimeout
+                apiurl = "/api/v2/events/ingest"
+                headers = {"Content-type": "application/json", "Authorization": f'Api-Token {self.apitoken}'}
+                url = self.server + apiurl
+                try:
+                    response = requests.post(url, json=event, headers=headers, verify=False)
+                    logger.info("{} problem with timeout: {} - Response: {}".format("Closing existing" if clear else "Refreshing/opening new", self.problemtimeout, response.status_code))
+                except:
+                    logger.error("There was a problem posting error event to Dynatrace: ".format(traceback.format_exc()))
+
+
 
         
         #optionally report days left to expire as metric        
@@ -475,6 +512,7 @@ class CertificateCheckPlugin(RemoteBasePlugin):
 
 
     def reportTLSVersionWarning(self, hostinfo, monitor_id):
+        logger.debug("In line 516: reportTLSVersionWarning")
         event = {
                     "eventType": "CUSTOM_INFO",
                     "timeout": self.problemtimeout,
@@ -490,8 +528,6 @@ class CertificateCheckPlugin(RemoteBasePlugin):
         apiurl = "/api/v2/events/ingest"
         headers = {"Content-type": "application/json", "Authorization": f'Api-Token {self.apitoken}'}
         url = self.server + apiurl
-
-        data = json.dumps(event)
         try:
             response = requests.post(url, json=event, headers=headers, verify=False)
             logger.info("Adding protocol version info event to monitor: {} - Response: {}".format(response.status_code))
