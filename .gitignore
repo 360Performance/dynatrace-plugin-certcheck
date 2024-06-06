@@ -3,3 +3,4 @@ token
 *.DS_Store
 plugin_sdk.conf
 plugin_upload.token
+properties.json
